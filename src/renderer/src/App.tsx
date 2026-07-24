@@ -42,7 +42,13 @@ export default function App(): React.ReactElement {
   // in alto a sinistra, sovrapposti al web content: riserviamo un'intera striscia
   // in alto (stesso sfondo della finestra, non della sidebar) così i pallini non
   // "sbattono" contro il pannello arrotondato. Su Windows/Linux resta 0.
-  const macTrafficLightInset = window.dashiai.platform === 'darwin' ? 28 : 0
+  // In fullscreen nativo i semafori spariscono: niente da riservare.
+  const [isFullScreen, setIsFullScreen] = useState(false)
+  useEffect(() => {
+    void window.dashiai.isFullScreen().then(setIsFullScreen)
+    return window.dashiai.onFullScreenChange(setIsFullScreen)
+  }, [])
+  const macTrafficLightInset = window.dashiai.platform === 'darwin' && !isFullScreen ? 28 : 0
 
   const toggleProject = (id: string): void =>
     setCollapsedProjects((s) => {
@@ -401,6 +407,13 @@ export default function App(): React.ReactElement {
     // Se tutte le card della riga sono compresse, la riga si accorcia alle sole
     // intestazioni (riga di "card parcheggiate").
     const allCollapsed = row.cols.length > 0 && row.cols.every((c) => c.collapsed)
+    // Normalizza i pesi SOLO per il render (non lo stato): dopo che una card
+    // viene chiusa/estratta/spostata, la somma dei col.w residui può scendere
+    // sotto 1. CSS flexbox non distribuisce lo spazio libero oltre alla somma
+    // dei flex-grow quando questa è < 1, lasciando un vuoto invece di
+    // riempire la riga. Il drag-resize continua a leggere col.w grezzo dallo
+    // stato (rapporti relativi, non toccati da questa normalizzazione).
+    const totalW = row.cols.reduce((sum, c) => sum + c.w, 0) || row.cols.length || 1
     return (
     <div
       key={`row-${r}`}
@@ -424,7 +437,7 @@ export default function App(): React.ReactElement {
                 <Card
                   r={r}
                   c={c}
-                  col={col}
+                  col={{ ...col, w: (col.w / totalW) * row.cols.length }}
                   isMenuOpen={openMenu === id}
                   isEditing={editing === id}
                   isDragged={!!dragCard && dragCard.r === r && dragCard.c === c}

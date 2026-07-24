@@ -71,6 +71,10 @@ function openDetached(id: string, title: string, color: string): void {
 }
 
 function registerWindowIpc(): void {
+  ipcMain.handle('window:is-fullscreen', (e) => {
+    const win = BrowserWindow.fromWebContents(e.sender)
+    return win ? win.isFullScreen() : false
+  })
   ipcMain.handle('terminal:detach-open', (_e, p: { id: string; title: string; color: string }) => {
     openDetached(p.id, p.title, p.color)
     return true
@@ -104,6 +108,10 @@ function createWindow(): void {
   mainWindow = win
 
   win.on('ready-to-show', () => win.show())
+  // In fullscreen nativo macOS i semafori spariscono: il renderer usa questo
+  // evento per azzerare lo spazio riservato in alto (vedi macTrafficLightInset).
+  win.on('enter-full-screen', () => win.webContents.send('dashiai:fullscreen', true))
+  win.on('leave-full-screen', () => win.webContents.send('dashiai:fullscreen', false))
   win.on('closed', () => {
     mainWindow = null
     // Chiudi eventuali finestre estratte rimaste aperte.

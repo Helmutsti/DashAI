@@ -93,7 +93,15 @@ const api = {
   terminal,
   projects,
   /** Apre il selettore cartella nativo. Ritorna il percorso o null. */
-  pickDirectory: (): Promise<string | null> => ipcRenderer.invoke('dialog:pickDirectory')
+  pickDirectory: (): Promise<string | null> => ipcRenderer.invoke('dialog:pickDirectory'),
+  /** Stato fullscreen della finestra al momento della chiamata. */
+  isFullScreen: (): Promise<boolean> => ipcRenderer.invoke('window:is-fullscreen'),
+  /** Notifica i cambi di stato fullscreen (macOS: nasconde i semafori). */
+  onFullScreenChange: (cb: (isFullScreen: boolean) => void): (() => void) => {
+    const listener = (_e: IpcRendererEvent, isFullScreen: boolean): void => cb(isFullScreen)
+    ipcRenderer.on('dashiai:fullscreen', listener)
+    return () => ipcRenderer.removeListener('dashiai:fullscreen', listener)
+  }
 }
 
 if (process.contextIsolated) {
