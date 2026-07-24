@@ -1,33 +1,60 @@
 import type { IconName } from './icons'
 
 /** ---- Shell ---- */
-export type ShellKey = 'powershell' | 'pwsh' | 'cmd' | 'gitbash'
+export type ShellKey =
+  | 'default'
+  | 'powershell'
+  | 'pwsh'
+  | 'cmd'
+  | 'gitbash'
+  | 'zsh'
+  | 'bash'
+  | 'fish'
 
 export interface ShellOption {
   key: ShellKey
   label: string
 }
 
-export const SHELL_OPTIONS: ShellOption[] = [
+/** Opzioni shell disponibili su Windows. */
+export const WINDOWS_SHELLS: ShellOption[] = [
+  { key: 'default', label: 'Predefinita (Windows PowerShell)' },
   { key: 'powershell', label: 'Windows PowerShell' },
   { key: 'pwsh', label: 'PowerShell 7 (pwsh)' },
   { key: 'cmd', label: 'Prompt dei comandi (cmd)' },
   { key: 'gitbash', label: 'Git Bash' }
 ]
 
-/** ---- AI ---- */
-export interface AiPreset {
-  key: string
-  label: string
-  command: string
+/** Opzioni shell disponibili su macOS / Linux. */
+export const UNIX_SHELLS: ShellOption[] = [
+  { key: 'default', label: 'Predefinita di sistema ($SHELL)' },
+  { key: 'zsh', label: 'zsh' },
+  { key: 'bash', label: 'bash' },
+  { key: 'fish', label: 'fish' }
+]
+
+/** Opzioni shell adatte alla piattaforma corrente. */
+export function shellOptionsFor(platform: string): ShellOption[] {
+  return platform === 'win32' ? WINDOWS_SHELLS : UNIX_SHELLS
 }
 
-export const AI_PRESETS: AiPreset[] = [
-  { key: 'none', label: 'Nessuno (shell pulita)', command: '' },
-  { key: 'claude', label: 'Claude Code', command: 'claude' },
-  { key: 'codex', label: 'Codex CLI', command: 'codex' },
-  { key: 'gemini', label: 'Gemini CLI', command: 'gemini' },
-  { key: 'custom', label: 'Personalizzato…', command: '' }
+/** ---- Template terminale ----
+ *  Un template precompila un nuovo terminale: le opzioni "AI" (Claude/Codex/…)
+ *  sono semplicemente terminali che avviano un comando, non un concetto a parte. */
+export interface TerminalTemplate {
+  key: string
+  label: string
+  /** comando d'avvio precompilato ('' = shell pulita) */
+  command: string
+  icon: IconName
+}
+
+export const TERMINAL_TEMPLATES: TerminalTemplate[] = [
+  { key: 'shell', label: 'Shell pulita', command: '', icon: 'Terminal' },
+  { key: 'claude', label: 'Claude Code', command: 'claude', icon: 'Robot' },
+  { key: 'codex', label: 'Codex CLI', command: 'codex', icon: 'Robot' },
+  { key: 'gemini', label: 'Gemini CLI', command: 'gemini', icon: 'Robot' },
+  { key: 'custom', label: 'Personalizzato…', command: '', icon: 'Terminal' }
 ]
 
 /** ---- Palette colori progetto ---- */
@@ -52,9 +79,7 @@ export interface Project {
   shell: ShellKey
   /** cartella di partenza; '' = home utente */
   cwd: string
-  /** preset AI d'avvio (chiave di AI_PRESETS) */
-  aiPreset: string
-  aiCustomCommand: string
+  /** terminali lanciabili (shell pulita, comandi, avvii AI: tutti uguali). */
   commands: QuickCommand[]
 }
 
@@ -80,10 +105,8 @@ export function makeProject(partial?: Partial<Project>): Project {
     label: 'Nuovo progetto',
     icon: 'Folder',
     color: TOP_COLORS[1],
-    shell: 'powershell',
+    shell: 'default',
     cwd: '',
-    aiPreset: 'none',
-    aiCustomCommand: '',
     commands: [],
     ...partial
   }
@@ -100,11 +123,12 @@ export function makeCommand(partial?: Partial<QuickCommand>): QuickCommand {
   }
 }
 
-/** Comando AI d'avvio del progetto ('' = nessuno). */
-export function startupCommand(p: Pick<Project, 'aiPreset' | 'aiCustomCommand'>): string {
-  if (p.aiPreset === 'custom') return p.aiCustomCommand.trim()
-  const preset = AI_PRESETS.find((x) => x.key === p.aiPreset)
-  return preset ? preset.command : ''
+/** Crea un nuovo terminale a partire da un template (vedi TERMINAL_TEMPLATES). */
+export function makeCommandFromTemplate(key: string): QuickCommand {
+  const t = TERMINAL_TEMPLATES.find((x) => x.key === key)
+  if (!t || t.key === 'shell') return makeCommand({ label: 'Terminale', command: '', icon: 'Terminal' })
+  if (t.key === 'custom') return makeCommand({ label: 'Nuovo comando', command: '', icon: 'Terminal' })
+  return makeCommand({ label: t.label, command: t.command, icon: t.icon })
 }
 
 /** Stato iniziale quando il file non esiste ancora. */

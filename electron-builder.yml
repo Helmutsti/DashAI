@@ -1,0 +1,57 @@
+productName: DashIAI
+
+# node-pty spedisce prebuild N-API (ABI-stabili): niente ricompilazione nativa,
+# così il build non richiede Visual Studio / Xcode command line tools.
+npmRebuild: false
+
+# Output degli installer/eseguibili
+directories:
+  output: dist
+  buildResources: build
+
+# Cosa finisce dentro l'app impacchettata
+files:
+  - out/**
+  - package.json
+
+# node-pty è un modulo nativo: i suoi binari (pty.node, spawn-helper, winpty…)
+# devono stare su disco, NON dentro l'archivio asar, altrimenti il loader non
+# li trova a runtime. asarUnpack li estrae in app.asar.unpacked/.
+asarUnpack:
+  - "**/node_modules/node-pty/**"
+
+# ---- Windows ----
+win:
+  target:
+    - target: nsis      # installer classico
+      arch: [x64]
+    - target: portable  # singolo .exe eseguibile senza installazione
+      arch: [x64]
+  artifactName: ${productName}-${version}-${arch}-setup.${ext}
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  artifactName: ${productName}-${version}-${arch}-setup.${ext}
+
+# ---- macOS ----
+# NB: il target mac si compila SOLO su macOS (limite Apple). Da Windows viene
+# ignorato. Firma/notarizzazione richiedono un Apple Developer ID.
+mac:
+  category: public.app-category.developer-tools
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+    - target: zip
+      arch: [arm64, x64]
+  artifactName: ${productName}-${version}-${arch}.${ext}
+  # Senza certificato Apple la firma va disattivata, altrimenti il build fallisce.
+  identity: null
+
+# ---- Linux (bonus, quasi gratis) ----
+linux:
+  target:
+    - AppImage
+  category: Development
+  artifactName: ${productName}-${version}-${arch}.${ext}

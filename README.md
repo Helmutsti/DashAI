@@ -5,8 +5,9 @@ repo `DashIAI`). Board di **card ridimensionabili e trascinabili**, tema neutro
 greyscale scuro, layout dal design **"Layout Grid App"**.
 
 > **Ogni card è un terminale vero, stile VSCode**: `xterm.js` nel renderer +
-> `node-pty` (shell reale) nel main, collegati via IPC. Shell predefinita su
-> Windows: **Windows PowerShell**.
+> `node-pty` (shell reale) nel main, collegati via IPC. La shell è selezionabile
+> per progetto ed è **adattata al sistema**: Windows PowerShell/pwsh/cmd/Git Bash
+> su Windows, zsh/bash/fish su macOS e Linux (default = shell predefinita di sistema).
 
 ## Requisiti
 
@@ -21,6 +22,26 @@ npm run build     # bundle di produzione in out/
 npm run preview   # avvia il bundle di produzione
 npm run typecheck # controllo tipi TypeScript
 ```
+
+### Il "server" in `npm run dev`
+
+`npm run dev` avvia un **dev server di Vite** (di norma su `http://localhost:5173`,
+oppure la porta libera successiva). **Non è un server dell'app**: serve solo la UI
+React del processo *renderer* con hot-reload, e la finestra Electron la carica
+internamente da quell'indirizzo locale. In produzione (`npm run build`) non c'è
+alcun server: Electron carica i file statici da `out/renderer/`.
+
+### Build degli eseguibili (electron-builder)
+
+```bash
+npm run dist:win    # installer + eseguibile portabile Windows  → dist/
+npm run dist:mac    # .dmg + .zip macOS (arm64 + x64)           → dist/
+npm run dist:linux  # AppImage Linux                            → dist/
+```
+
+> Il target **macOS si compila solo su un Mac** (limite Apple); Windows solo su
+> Windows. Per produrre entrambi da un unico punto c'è il workflow GitHub Actions
+> in `.github/workflows/build.yml` (build su runner nativi ad ogni tag `v*`).
 
 ## Struttura
 
@@ -46,8 +67,9 @@ src/
 - `TerminalView` crea un `xterm.Terminal` + `FitAddon` e lo lega alla pty
   tramite `window.dashiai.terminal` (create/input/resize/dispose + onData/onExit).
 - Il main (`pty.ts`) tiene una `node-pty` per ogni `Column.id` e inoltra l'I/O.
-- `node-pty` 1.1.0 usa binari **N-API precompilati** (`prebuilds/win32-x64/`):
-  nessuna compilazione richiesta. È **externalizzato** dal bundle del main
+- `node-pty` 1.1.0 usa binari **N-API precompilati** (`prebuilds/` per win32-x64/arm64
+  e darwin-x64/arm64): nessuna compilazione richiesta, funziona così anche su Mac.
+  È **externalizzato** dal bundle del main
   (`externalizeDepsPlugin`) perché il suo loader cerca il `.node` a runtime.
 - Ogni card ha un `id` stabile: la shell **sopravvive al riordino nella stessa
   riga**. Spostare una card in un'altra riga la rimonta e la shell riparte

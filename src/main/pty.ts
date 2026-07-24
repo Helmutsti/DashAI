@@ -8,7 +8,18 @@ interface Session {
   wc: WebContents
 }
 
-export type ShellKey = 'powershell' | 'pwsh' | 'cmd' | 'gitbash'
+export type ShellKey =
+  // universale: shell predefinita del sistema (PowerShell su Windows, $SHELL altrove)
+  | 'default'
+  // Windows
+  | 'powershell'
+  | 'pwsh'
+  | 'cmd'
+  | 'gitbash'
+  // Unix / macOS / Linux
+  | 'zsh'
+  | 'bash'
+  | 'fish'
 
 export interface CreateOpts {
   id: string
@@ -30,10 +41,48 @@ const GIT_BASH_CANDIDATES = [
   'C:\\Program Files (x86)\\Git\\bin\\bash.exe'
 ]
 
+/** Shell Unix predefinita: $SHELL, poi zsh (default macOS), infine bash. */
+function defaultUnixShell(): string {
+  if (process.env.SHELL) return process.env.SHELL
+  if (fs.existsSync('/bin/zsh')) return '/bin/zsh'
+  return '/bin/bash'
+}
+
+/** Risolve eseguibile/argomenti per una shell Unix (macOS / Linux) interattiva. */
+function resolveUnixShell(shell?: ShellKey): { file: string; args: string[] } {
+  // -i -l: shell interattiva di login, così vengono caricati i profili
+  // (~/.zprofile, ~/.bash_profile, PATH di Homebrew, ecc.).
+  switch (shell) {
+    case 'zsh':
+      return { file: 'zsh', args: ['-i', '-l'] }
+    case 'bash':
+      return { file: 'bash', args: ['-i', '-l'] }
+    case 'fish':
+      return { file: 'fish', args: ['-i', '-l'] }
+    // 'default' e qualsiasi chiave Windows persistita su un progetto aperto su Mac
+    default:
+      return { file: defaultUnixShell(), args: [] }
+  }
+}
+
+/** Come resolveUnixShell, ma esegue un comando e termina. */
+function resolveUnixShellRun(shell: ShellKey | undefined, cmd: string): { file: string; args: string[] } {
+  switch (shell) {
+    case 'zsh':
+      return { file: 'zsh', args: ['-l', '-c', cmd] }
+    case 'bash':
+      return { file: 'bash', args: ['-l', '-c', cmd] }
+    case 'fish':
+      return { file: 'fish', args: ['-l', '-c', cmd] }
+    default:
+      return { file: defaultUnixShell(), args: ['-l', '-c', cmd] }
+  }
+}
+
 /** Risolve la coppia eseguibile/argomenti per la shell scelta. */
 function resolveShell(shell?: ShellKey): { file: string; args: string[] } {
   if (process.platform !== 'win32') {
-    return { file: process.env.SHELL || '/bin/bash', args: [] }
+    return resolveUnixShell(shell)
   }
   switch (shell) {
     case 'pwsh':
@@ -44,6 +93,7 @@ function resolveShell(shell?: ShellKey): { file: string; args: string[] } {
       const found = GIT_BASH_CANDIDATES.find((p) => fs.existsSync(p))
       return { file: found || 'bash.exe', args: ['-i', '-l'] }
     }
+    // 'default', 'powershell' e chiavi Unix persistite → PowerShell su Windows
     case 'powershell':
     default:
       return { file: 'powershell.exe', args: [] }
@@ -53,7 +103,7 @@ function resolveShell(shell?: ShellKey): { file: string; args: string[] } {
 /** Come resolveShell, ma per eseguire un comando e uscire al suo termine. */
 function resolveShellRun(shell: ShellKey | undefined, cmd: string): { file: string; args: string[] } {
   if (process.platform !== 'win32') {
-    return { file: process.env.SHELL || '/bin/bash', args: ['-lc', cmd] }
+    return resolveUnixShellRun(shell, cmd)
   }
   switch (shell) {
     case 'pwsh':

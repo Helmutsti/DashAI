@@ -2,10 +2,10 @@ import { useState } from 'react'
 import { CaretDown, Plus, Trash, X } from '@phosphor-icons/react'
 import type { CSSProperties } from 'react'
 import {
-  AI_PRESETS,
-  SHELL_OPTIONS,
+  TERMINAL_TEMPLATES,
+  shellOptionsFor,
   TOP_COLORS,
-  makeCommand,
+  makeCommandFromTemplate,
   type Project,
   type QuickCommand
 } from './projects'
@@ -22,6 +22,8 @@ export interface ProjectEditorModalProps {
 
 export default function ProjectEditorModal(props: ProjectEditorModalProps): React.ReactElement {
   const [draft, setDraft] = useState<Project>(props.project)
+  // Opzioni shell in base al sistema (Windows: PowerShell/cmd/…; macOS/Linux: zsh/bash/…).
+  const shellOptions = shellOptionsFor(window.dashiai?.platform ?? 'win32')
   const set = <K extends keyof Project>(k: K, v: Project[K]): void =>
     setDraft((d) => ({ ...d, [k]: v }))
 
@@ -30,7 +32,8 @@ export default function ProjectEditorModal(props: ProjectEditorModalProps): Reac
       ...d,
       commands: d.commands.map((c) => (c.id === id ? { ...c, ...patch } : c))
     }))
-  const addCommand = (): void => setDraft((d) => ({ ...d, commands: [...d.commands, makeCommand()] }))
+  const addCommand = (templateKey: string): void =>
+    setDraft((d) => ({ ...d, commands: [...d.commands, makeCommandFromTemplate(templateKey)] }))
   const removeCommand = (id: string): void =>
     setDraft((d) => ({ ...d, commands: d.commands.filter((c) => c.id !== id) }))
 
@@ -91,9 +94,9 @@ export default function ProjectEditorModal(props: ProjectEditorModalProps): Reac
             </label>
           </section>
 
-          {/* Sezione: Terminale */}
+          {/* Sezione: Terminali (shell del progetto + terminali lanciabili) */}
           <section style={sectionStyle}>
-            <div style={sectionTitleStyle}>Terminale</div>
+            <div style={sectionTitleStyle}>Terminali</div>
             <label style={fieldStyle}>
               <span style={labelStyle}>Shell</span>
               <select
@@ -101,49 +104,24 @@ export default function ProjectEditorModal(props: ProjectEditorModalProps): Reac
                 onChange={(e) => set('shell', e.target.value as Project['shell'])}
                 style={selectStyle}
               >
-                {SHELL_OPTIONS.map((o) => (
+                {shellOptions.map((o) => (
                   <option key={o.key} value={o.key}>
                     {o.label}
                   </option>
                 ))}
               </select>
             </label>
-            <label style={fieldStyle}>
-              <span style={labelStyle}>AI di partenza</span>
-              <select
-                value={draft.aiPreset}
-                onChange={(e) => set('aiPreset', e.target.value)}
-                style={selectStyle}
-              >
-                {AI_PRESETS.map((p) => (
-                  <option key={p.key} value={p.key}>
-                    {p.label}
-                  </option>
-                ))}
-              </select>
-              {draft.aiPreset === 'custom' && (
-                <input
-                  type="text"
-                  value={draft.aiCustomCommand}
-                  placeholder="comando, es. aider --model ..."
-                  onChange={(e) => set('aiCustomCommand', e.target.value)}
-                  style={{ ...controlStyle, marginTop: 'var(--space-2)' }}
-                />
-              )}
-            </label>
-          </section>
 
-          {/* Sezione: Comandi */}
-          <section style={sectionStyle}>
+            {/* Elenco dei terminali lanciabili dalla sidebar */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-              <span style={{ ...sectionTitleStyle, flex: '1 1 auto' }}>Comandi</span>
-              <button type="button" className="btn btn--ghost" onClick={addCommand} style={btnBase}>
-                <Plus size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />
-                Aggiungi
-              </button>
+              <span style={{ ...labelStyle, flex: '1 1 auto' }}>Terminali del progetto</span>
+              <AddTerminalButton onAdd={addCommand} />
             </div>
             {draft.commands.length === 0 && (
-              <span style={hintStyle}>Nessun comando. Aggiungine per lanciarli con un clic dalla sidebar.</span>
+              <span style={hintStyle}>
+                Nessun terminale. Aggiungine uno (shell pulita, un comando, o un avvio AI come
+                Claude Code) per lanciarlo con un clic dalla sidebar.
+              </span>
             )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
               {draft.commands.map((cmd) => (
@@ -238,6 +216,85 @@ export default function ProjectEditorModal(props: ProjectEditorModalProps): Reac
           </button>
         </div>
       </div>
+    </div>
+  )
+}
+
+/** Pulsante "Aggiungi" con menu dei template terminale (shell / AI / custom). */
+function AddTerminalButton({ onAdd }: { onAdd: (templateKey: string) => void }): React.ReactElement {
+  const [open, setOpen] = useState(false)
+  return (
+    <div style={{ position: 'relative', flex: '0 0 auto' }}>
+      <button type="button" className="btn btn--ghost" onClick={() => setOpen((o) => !o)} style={btnBase}>
+        <Plus size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />
+        Aggiungi
+        <CaretDown
+          size={10}
+          color="var(--color-neutral-500)"
+          style={{ marginLeft: 6, verticalAlign: 'middle' }}
+        />
+      </button>
+      {open && (
+        <>
+          {/* click-away */}
+          <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
+          <div
+            style={{
+              position: 'absolute',
+              top: 'calc(100% + 4px)',
+              right: 0,
+              zIndex: 41,
+              minWidth: 190,
+              display: 'flex',
+              flexDirection: 'column',
+              padding: 'var(--space-2)',
+              background: 'var(--color-surface)',
+              border: '1px solid var(--color-neutral-700)',
+              borderRadius: 'var(--radius-md)',
+              boxShadow: 'var(--shadow-md)'
+            }}
+          >
+            {TERMINAL_TEMPLATES.map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => {
+                  onAdd(t.key)
+                  setOpen(false)
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 'var(--space-3)',
+                  padding: 'var(--space-2) var(--space-3)',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1px solid transparent',
+                  background: 'transparent',
+                  color: 'var(--color-neutral-200)',
+                  fontFamily: 'var(--font-body)',
+                  fontSize: 13,
+                  textAlign: 'left',
+                  cursor: 'pointer'
+                }}
+              >
+                <Icon name={t.icon} size={15} color="var(--color-neutral-400)" />
+                <span style={{ flex: '1 1 auto' }}>{t.label}</span>
+                {t.command && (
+                  <span
+                    style={{
+                      fontFamily: 'ui-monospace, Menlo, Consolas, monospace',
+                      fontSize: 11,
+                      color: 'var(--color-neutral-500)'
+                    }}
+                  >
+                    {t.command}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   )
 }

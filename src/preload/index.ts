@@ -1,6 +1,14 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 
-export type ShellKey = 'powershell' | 'pwsh' | 'cmd' | 'gitbash'
+export type ShellKey =
+  | 'default'
+  | 'powershell'
+  | 'pwsh'
+  | 'cmd'
+  | 'gitbash'
+  | 'zsh'
+  | 'bash'
+  | 'fish'
 
 export interface CreateOpts {
   id: string
@@ -80,6 +88,8 @@ const projects = {
 
 const api = {
   version: '0.1.0',
+  /** Piattaforma del sistema ('win32' | 'darwin' | 'linux'): guida il menu shell. */
+  platform: process.platform,
   terminal,
   projects,
   /** Apre il selettore cartella nativo. Ritorna il percorso o null. */
