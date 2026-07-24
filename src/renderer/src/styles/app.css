@@ -1,0 +1,92 @@
+/* Reset minimale + regole di hover (gli stili inline non gestiscono :hover). */
+* {
+  box-sizing: border-box;
+}
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: var(--color-bg);
+}
+body {
+  font-family: var(--font-body);
+  color: var(--color-text);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-neutral-800);
+  border-radius: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+textarea:focus,
+input:focus {
+  outline: none;
+}
+
+/* --- Hover states --- */
+.collapse-btn:hover,
+.reopen-btn:hover,
+.send-btn:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.settings-row:hover {
+  background: color-mix(in srgb, var(--color-text) 6%, transparent);
+}
+
+.nav-item:hover {
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  color: var(--color-accent);
+}
+
+.project-row:hover {
+  background: color-mix(in srgb, var(--color-text) 6%, transparent);
+}
+.cmd-row:hover {
+  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+}
+
+.gear-btn {
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.gear-btn:hover {
+  background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+  color: var(--color-accent);
+}
+
+.menu-trigger:hover {
+  color: var(--color-text);
+}
+
+.menu-item:hover {
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  color: var(--color-accent);
+}
+.menu-item--danger:hover {
+  background: color-mix(in srgb, var(--color-danger) 15%, transparent);
+}
+
+.btn--ghost:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+.btn--primary:hover {
+  filter: brightness(1.08);
+}
+
+option {
+  color: var(--color-text);
+  background: var(--color-bg);
+}
