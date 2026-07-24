@@ -2,12 +2,13 @@ import { useState } from 'react'
 import { CaretDown, Plus, Trash, X } from '@phosphor-icons/react'
 import type { CSSProperties } from 'react'
 import {
-  TERMINAL_TEMPLATES,
   shellOptionsFor,
   TOP_COLORS,
-  makeCommandFromTemplate,
+  makeCommand,
   type Project,
-  type QuickCommand
+  type QuickCommand,
+  type ShellKey,
+  type ShellOption
 } from './projects'
 import { ICON_NAMES, Icon, type IconName } from './icons'
 
@@ -32,8 +33,8 @@ export default function ProjectEditorModal(props: ProjectEditorModalProps): Reac
       ...d,
       commands: d.commands.map((c) => (c.id === id ? { ...c, ...patch } : c))
     }))
-  const addCommand = (templateKey: string): void =>
-    setDraft((d) => ({ ...d, commands: [...d.commands, makeCommandFromTemplate(templateKey)] }))
+  const addCommand = (): void =>
+    setDraft((d) => ({ ...d, commands: [...d.commands, makeCommand()] }))
   const removeCommand = (id: string): void =>
     setDraft((d) => ({ ...d, commands: d.commands.filter((c) => c.id !== id) }))
 
@@ -94,33 +95,19 @@ export default function ProjectEditorModal(props: ProjectEditorModalProps): Reac
             </label>
           </section>
 
-          {/* Sezione: Terminali (shell del progetto + terminali lanciabili) */}
+          {/* Sezione: Terminali lanciabili dalla sidebar (shell scelta per singolo comando) */}
           <section style={sectionStyle}>
             <div style={sectionTitleStyle}>Terminali</div>
-            <label style={fieldStyle}>
-              <span style={labelStyle}>Shell</span>
-              <select
-                value={draft.shell}
-                onChange={(e) => set('shell', e.target.value as Project['shell'])}
-                style={selectStyle}
-              >
-                {shellOptions.map((o) => (
-                  <option key={o.key} value={o.key}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            {/* Elenco dei terminali lanciabili dalla sidebar */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
               <span style={{ ...labelStyle, flex: '1 1 auto' }}>Terminali del progetto</span>
-              <AddTerminalButton onAdd={addCommand} />
+              <button type="button" className="btn btn--ghost" onClick={addCommand} style={btnBase}>
+                <Plus size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />
+                Aggiungi
+              </button>
             </div>
             {draft.commands.length === 0 && (
               <span style={hintStyle}>
-                Nessun terminale. Aggiungine uno (shell pulita, un comando, o un avvio AI come
-                Claude Code) per lanciarlo con un clic dalla sidebar.
+                Nessun terminale. Aggiungine uno per lanciarlo con un clic dalla sidebar.
               </span>
             )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
@@ -145,6 +132,11 @@ export default function ProjectEditorModal(props: ProjectEditorModalProps): Reac
                       onChange={(e) => setCommand(cmd.id, { label: e.target.value })}
                       style={{ ...controlStyle, flex: '1 1 auto' }}
                     />
+                    <ShellDropdown
+                      options={shellOptions}
+                      value={cmd.shell}
+                      onPick={(s) => setCommand(cmd.id, { shell: s })}
+                    />
                     <button
                       type="button"
                       className="menu-item menu-item--danger"
@@ -166,6 +158,33 @@ export default function ProjectEditorModal(props: ProjectEditorModalProps): Reac
                       fontSize: 12
                     }}
                   />
+                  {cmd.shell === 'custom' && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+                      <input
+                        type="text"
+                        value={cmd.shellPath ?? ''}
+                        placeholder="Percorso eseguibile shell, es. /opt/homebrew/bin/nu"
+                        onChange={(e) => setCommand(cmd.id, { shellPath: e.target.value })}
+                        style={{
+                          ...controlStyle,
+                          flex: '1 1 auto',
+                          fontFamily: 'ui-monospace, Menlo, Consolas, monospace',
+                          fontSize: 12
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn--ghost"
+                        onClick={async () => {
+                          const file = await window.dashiai.pickFile()
+                          if (file) setCommand(cmd.id, { shellPath: file })
+                        }}
+                        style={{ ...btnBase, whiteSpace: 'nowrap' }}
+                      >
+                        Scegli…
+                      </button>
+                    </div>
+                  )}
                   <label
                     style={{
                       display: 'flex',
@@ -216,85 +235,6 @@ export default function ProjectEditorModal(props: ProjectEditorModalProps): Reac
           </button>
         </div>
       </div>
-    </div>
-  )
-}
-
-/** Pulsante "Aggiungi" con menu dei template terminale (shell / AI / custom). */
-function AddTerminalButton({ onAdd }: { onAdd: (templateKey: string) => void }): React.ReactElement {
-  const [open, setOpen] = useState(false)
-  return (
-    <div style={{ position: 'relative', flex: '0 0 auto' }}>
-      <button type="button" className="btn btn--ghost" onClick={() => setOpen((o) => !o)} style={btnBase}>
-        <Plus size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />
-        Aggiungi
-        <CaretDown
-          size={10}
-          color="var(--color-neutral-500)"
-          style={{ marginLeft: 6, verticalAlign: 'middle' }}
-        />
-      </button>
-      {open && (
-        <>
-          {/* click-away */}
-          <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
-          <div
-            style={{
-              position: 'absolute',
-              bottom: 'calc(100% + 4px)',
-              right: 0,
-              zIndex: 41,
-              minWidth: 190,
-              display: 'flex',
-              flexDirection: 'column',
-              padding: 'var(--space-2)',
-              background: 'var(--color-surface)',
-              border: '1px solid var(--color-neutral-700)',
-              borderRadius: 'var(--radius-md)',
-              boxShadow: 'var(--shadow-md)'
-            }}
-          >
-            {TERMINAL_TEMPLATES.map((t) => (
-              <button
-                key={t.key}
-                type="button"
-                onClick={() => {
-                  onAdd(t.key)
-                  setOpen(false)
-                }}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 'var(--space-3)',
-                  padding: 'var(--space-2) var(--space-3)',
-                  borderRadius: 'var(--radius-sm)',
-                  border: '1px solid transparent',
-                  background: 'transparent',
-                  color: 'var(--color-neutral-200)',
-                  fontFamily: 'var(--font-body)',
-                  fontSize: 13,
-                  textAlign: 'left',
-                  cursor: 'pointer'
-                }}
-              >
-                <Icon name={t.icon} size={15} color="var(--color-neutral-400)" />
-                <span style={{ flex: '1 1 auto' }}>{t.label}</span>
-                {t.command && (
-                  <span
-                    style={{
-                      fontFamily: 'ui-monospace, Menlo, Consolas, monospace',
-                      fontSize: 11,
-                      color: 'var(--color-neutral-500)'
-                    }}
-                  >
-                    {t.command}
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-        </>
-      )}
     </div>
   )
 }
@@ -384,6 +324,109 @@ function IconDropdown({
   )
 }
 
+/** Etichetta breve per il pulsante chiuso (le label complete sono nel menu). */
+function shortShellLabel(key: ShellKey): string {
+  switch (key) {
+    case 'default':
+      return 'Sistema'
+    case 'custom':
+      return 'Custom'
+    default:
+      return key
+  }
+}
+
+/** Selettore shell compatto per singolo comando: un pulsante che apre un menu a comparsa. */
+function ShellDropdown({
+  options,
+  value,
+  onPick
+}: {
+  options: ShellOption[]
+  value: ShellKey
+  onPick: (s: ShellKey) => void
+}): React.ReactElement {
+  const [open, setOpen] = useState(false)
+  return (
+    <div style={{ position: 'relative', flex: '0 0 auto' }}>
+      <button
+        type="button"
+        title="Scegli shell"
+        onClick={() => setOpen((o) => !o)}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 4,
+          padding: 'var(--space-2) var(--space-3)',
+          border: '1px solid var(--color-divider)',
+          borderRadius: 'var(--radius-md)',
+          background: 'var(--color-bg)',
+          color: 'var(--color-neutral-300)',
+          fontSize: 12,
+          whiteSpace: 'nowrap',
+          cursor: 'pointer'
+        }}
+      >
+        {shortShellLabel(value)}
+        <CaretDown size={10} color="var(--color-neutral-500)" />
+      </button>
+      {open && (
+        <>
+          {/* click-away */}
+          <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
+          <div
+            style={{
+              position: 'absolute',
+              top: 'calc(100% + 4px)',
+              right: 0,
+              zIndex: 41,
+              minWidth: 200,
+              display: 'flex',
+              flexDirection: 'column',
+              padding: 'var(--space-2)',
+              background: 'var(--color-surface)',
+              border: '1px solid var(--color-neutral-700)',
+              borderRadius: 'var(--radius-md)',
+              boxShadow: 'var(--shadow-md)'
+            }}
+          >
+            {options.map((o) => {
+              const active = value === o.key
+              return (
+                <button
+                  key={o.key}
+                  type="button"
+                  onClick={() => {
+                    onPick(o.key)
+                    setOpen(false)
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: 'var(--space-2) var(--space-3)',
+                    borderRadius: 'var(--radius-sm)',
+                    border: '1px solid transparent',
+                    background: active
+                      ? 'color-mix(in srgb, var(--color-accent) 14%, transparent)'
+                      : 'transparent',
+                    color: active ? 'var(--color-accent)' : 'var(--color-neutral-200)',
+                    fontFamily: 'var(--font-body)',
+                    fontSize: 13,
+                    textAlign: 'left',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {o.label}
+                </button>
+              )
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 function ColorDots({
   value,
   onPick
@@ -392,7 +435,7 @@ function ColorDots({
   onPick: (c: string) => void
 }): React.ReactElement {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+    <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--space-3)' }}>
       {TOP_COLORS.map((color) => {
         const active = value === color
         return (
@@ -402,8 +445,8 @@ function ColorDots({
             title={color}
             onClick={() => onPick(color)}
             style={{
-              width: 18,
-              height: 18,
+              width: 14,
+              height: 14,
               padding: 0,
               borderRadius: '50%',
               background: color,
@@ -471,17 +514,6 @@ const controlStyle: CSSProperties = {
   border: '1px solid var(--color-divider)',
   borderRadius: 'var(--radius-md)',
   padding: 'var(--space-3)'
-}
-const selectStyle: CSSProperties = {
-  ...controlStyle,
-  appearance: 'none',
-  WebkitAppearance: 'none',
-  MozAppearance: 'none',
-  paddingRight: 34,
-  backgroundImage:
-    `url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='12'%20height='12'%20viewBox='0%200%2012%2012'%3E%3Cpath%20d='M2.5%204.5l3.5%203.5%203.5-3.5'%20fill='none'%20stroke='%23b0b0b0'%20stroke-width='1.5'%20stroke-linecap='round'%20stroke-linejoin='round'/%3E%3C/svg%3E")`,
-  backgroundRepeat: 'no-repeat',
-  backgroundPosition: 'right 12px center'
 }
 const btnBase: CSSProperties = {
   fontFamily: 'var(--font-body)',

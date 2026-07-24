@@ -10,6 +10,8 @@ export type ShellKey =
   | 'zsh'
   | 'bash'
   | 'fish'
+  // eseguibile a percorso libero, vedi QuickCommand.shellPath
+  | 'custom'
 
 export interface ShellOption {
   key: ShellKey
@@ -33,32 +35,24 @@ export const UNIX_SHELLS: ShellOption[] = [
   { key: 'fish', label: 'fish' }
 ]
 
-/** Opzioni shell adatte alla piattaforma corrente. */
+/** Opzioni shell adatte alla piattaforma corrente, con l'opzione "percorso custom" in coda. */
 export function shellOptionsFor(platform: string): ShellOption[] {
-  return platform === 'win32' ? WINDOWS_SHELLS : UNIX_SHELLS
+  const native = platform === 'win32' ? WINDOWS_SHELLS : UNIX_SHELLS
+  return [...native, { key: 'custom', label: 'Personalizzata (percorso)…' }]
 }
-
-/** ---- Template terminale ----
- *  Un template precompila un nuovo terminale: le opzioni "AI" (Claude/Codex/…)
- *  sono semplicemente terminali che avviano un comando, non un concetto a parte. */
-export interface TerminalTemplate {
-  key: string
-  label: string
-  /** comando d'avvio precompilato ('' = shell pulita) */
-  command: string
-  icon: IconName
-}
-
-export const TERMINAL_TEMPLATES: TerminalTemplate[] = [
-  { key: 'shell', label: 'Shell pulita', command: '', icon: 'Terminal' },
-  { key: 'claude', label: 'Claude Code', command: 'claude', icon: 'Robot' },
-  { key: 'codex', label: 'Codex CLI', command: 'codex', icon: 'Robot' },
-  { key: 'gemini', label: 'Gemini CLI', command: 'gemini', icon: 'Robot' },
-  { key: 'custom', label: 'Personalizzato…', command: '', icon: 'Terminal' }
-]
 
 /** ---- Palette colori progetto ---- */
-export const TOP_COLORS = ['#cccccc', '#5bbfa5', '#e0a35b', '#e0666e', '#6ea8e0']
+export const TOP_COLORS = [
+  '#cccccc',
+  '#5bbfa5',
+  '#e0a35b',
+  '#e0666e',
+  '#6ea8e0',
+  '#9b8ee0',
+  '#e0c15b',
+  '#5bc4c9',
+  '#7fc98a'
+]
 
 /** ---- Modello ---- */
 export interface QuickCommand {
@@ -69,6 +63,10 @@ export interface QuickCommand {
   command: string
   /** chiudi automaticamente la card quando il comando termina */
   closeOnExit: boolean
+  /** shell con cui lanciare questo terminale (indipendente dagli altri comandi) */
+  shell: ShellKey
+  /** percorso dell'eseguibile, usato quando shell === 'custom' */
+  shellPath?: string
 }
 
 export interface Project {
@@ -76,7 +74,6 @@ export interface Project {
   label: string
   icon: IconName
   color: string
-  shell: ShellKey
   /** cartella di partenza; '' = home utente */
   cwd: string
   /** terminali lanciabili (shell pulita, comandi, avvii AI: tutti uguali). */
@@ -105,7 +102,6 @@ export function makeProject(partial?: Partial<Project>): Project {
     label: 'Nuovo progetto',
     icon: 'Folder',
     color: TOP_COLORS[1],
-    shell: 'default',
     cwd: '',
     commands: [],
     ...partial
@@ -119,16 +115,9 @@ export function makeCommand(partial?: Partial<QuickCommand>): QuickCommand {
     icon: 'Terminal',
     command: '',
     closeOnExit: false,
+    shell: 'default',
     ...partial
   }
-}
-
-/** Crea un nuovo terminale a partire da un template (vedi TERMINAL_TEMPLATES). */
-export function makeCommandFromTemplate(key: string): QuickCommand {
-  const t = TERMINAL_TEMPLATES.find((x) => x.key === key)
-  if (!t || t.key === 'shell') return makeCommand({ label: 'Terminale', command: '', icon: 'Terminal' })
-  if (t.key === 'custom') return makeCommand({ label: 'Nuovo comando', command: '', icon: 'Terminal' })
-  return makeCommand({ label: t.label, command: t.command, icon: t.icon })
 }
 
 /** Stato iniziale quando il file non esiste ancora. */

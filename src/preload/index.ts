@@ -9,12 +9,15 @@ export type ShellKey =
   | 'zsh'
   | 'bash'
   | 'fish'
+  | 'custom'
 
 export interface CreateOpts {
   id: string
   cols: number
   rows: number
   shell?: ShellKey
+  /** percorso dell'eseguibile, usato quando shell === 'custom'. */
+  shellPath?: string
   cwd?: string
   startupCommand?: string
   /** esegui il comando come processo della shell e chiudi al termine */
@@ -94,6 +97,10 @@ const api = {
   projects,
   /** Apre il selettore cartella nativo. Ritorna il percorso o null. */
   pickDirectory: (): Promise<string | null> => ipcRenderer.invoke('dialog:pickDirectory'),
+  /** Apre il selettore file nativo (es. eseguibile di una shell custom). Ritorna il percorso o null. */
+  pickFile: (): Promise<string | null> => ipcRenderer.invoke('dialog:pickFile'),
+  /** Apre `path` (o la home utente se vuoto) nel Finder/Esplora risorse. */
+  openInFileManager: (path: string): Promise<boolean> => ipcRenderer.invoke('shell:open-path', path),
   /** Stato fullscreen della finestra al momento della chiamata. */
   isFullScreen: (): Promise<boolean> => ipcRenderer.invoke('window:is-fullscreen'),
   /** Notifica i cambi di stato fullscreen (macOS: nasconde i semafori). */

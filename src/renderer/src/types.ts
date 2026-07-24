@@ -12,6 +12,8 @@ export interface Column {
   color: string
   /** configurazione di spawn della shell (per-card, snapshot alla creazione) */
   shell?: ShellKey
+  /** percorso dell'eseguibile, usato quando shell === 'custom' */
+  shellPath?: string
   cwd?: string
   startupCommand?: string
   /** chiudi la card quando il processo termina (comandi "chiudi al termine") */

@@ -14,6 +14,9 @@ import type { CSSProperties } from 'react'
 import TerminalView from './TerminalView'
 import type { Column } from './types'
 
+/** Altezza approssimativa del menu a comparsa (5 voci fisse), per decidere se aprirlo sopra o sotto. */
+const MENU_HEIGHT_ESTIMATE = 190
+
 export interface CardProps {
   r: number
   c: number
@@ -42,13 +45,20 @@ export default function Card(props: CardProps): React.ReactElement {
   const { r, c, col, isMenuOpen, isEditing, isDragged, dropSide } = props
   const inputRef = useRef<HTMLInputElement>(null)
   const triggerRef = useRef<HTMLDivElement>(null)
-  const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null)
+  const [menuPos, setMenuPos] = useState<{ top?: number; bottom?: number; right: number } | null>(null)
 
   // Posiziona il menu (reso in portale) sotto il trigger, in coordinate viewport.
+  // Se non c'è spazio sotto (card in fondo alla finestra), lo apre sopra invece.
   useLayoutEffect(() => {
     if (isMenuOpen && triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect()
-      setMenuPos({ top: rect.bottom + 6, right: window.innerWidth - rect.right })
+      const right = window.innerWidth - rect.right
+      const spaceBelow = window.innerHeight - rect.bottom
+      if (spaceBelow < MENU_HEIGHT_ESTIMATE + 6) {
+        setMenuPos({ bottom: window.innerHeight - rect.top + 6, right })
+      } else {
+        setMenuPos({ top: rect.bottom + 6, right })
+      }
     }
   }, [isMenuOpen])
 
@@ -77,6 +87,9 @@ export default function Card(props: CardProps): React.ReactElement {
       onDrop={props.onDrop}
       style={{
         flex: `${col.w} 1 0%`,
+        // Compressa: si riduce alla sola intestazione invece di stirarsi
+        // all'altezza delle card sorelle ancora espanse nella stessa riga.
+        alignSelf: col.collapsed ? 'flex-start' : 'stretch',
         position: 'relative',
         zIndex: isMenuOpen ? 5 : 1,
         opacity: isDragged ? 0.4 : 1,
@@ -202,6 +215,7 @@ export default function Card(props: CardProps): React.ReactElement {
               style={{
                 position: 'fixed',
                 top: menuPos.top,
+                bottom: menuPos.bottom,
                 right: menuPos.right,
                 zIndex: 1000,
                 minWidth: 168,
@@ -271,6 +285,7 @@ export default function Card(props: CardProps): React.ReactElement {
         <TerminalView
           termId={col.id}
           shell={col.shell}
+          shellPath={col.shellPath}
           cwd={col.cwd}
           startupCommand={col.startupCommand}
           closeOnExit={col.closeOnExit}

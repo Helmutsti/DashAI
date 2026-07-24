@@ -20,12 +20,16 @@ export type ShellKey =
   | 'zsh'
   | 'bash'
   | 'fish'
+  // eseguibile a percorso libero (vedi shellPath)
+  | 'custom'
 
 export interface CreateOpts {
   id: string
   cols: number
   rows: number
   shell?: ShellKey
+  /** percorso dell'eseguibile, usato quando shell === 'custom'. */
+  shellPath?: string
   cwd?: string
   /** comando lanciato subito dopo l'avvio della shell (es. 'claude'). */
   startupCommand?: string
@@ -49,7 +53,7 @@ function defaultUnixShell(): string {
 }
 
 /** Risolve eseguibile/argomenti per una shell Unix (macOS / Linux) interattiva. */
-function resolveUnixShell(shell?: ShellKey): { file: string; args: string[] } {
+function resolveUnixShell(shell?: ShellKey, shellPath?: string): { file: string; args: string[] } {
   // -i -l: shell interattiva di login, così vengono caricati i profili
   // (~/.zprofile, ~/.bash_profile, PATH di Homebrew, ecc.).
   switch (shell) {
@@ -59,6 +63,8 @@ function resolveUnixShell(shell?: ShellKey): { file: string; args: string[] } {
       return { file: 'bash', args: ['-i', '-l'] }
     case 'fish':
       return { file: 'fish', args: ['-i', '-l'] }
+    case 'custom':
+      return { file: shellPath?.trim() || defaultUnixShell(), args: ['-i', '-l'] }
     // 'default' e qualsiasi chiave Windows persistita su un progetto aperto su Mac
     default:
       return { file: defaultUnixShell(), args: [] }
@@ -66,7 +72,11 @@ function resolveUnixShell(shell?: ShellKey): { file: string; args: string[] } {
 }
 
 /** Come resolveUnixShell, ma esegue un comando e termina. */
-function resolveUnixShellRun(shell: ShellKey | undefined, cmd: string): { file: string; args: string[] } {
+function resolveUnixShellRun(
+  shell: ShellKey | undefined,
+  cmd: string,
+  shellPath?: string
+): { file: string; args: string[] } {
   switch (shell) {
     case 'zsh':
       return { file: 'zsh', args: ['-l', '-c', cmd] }
@@ -74,15 +84,17 @@ function resolveUnixShellRun(shell: ShellKey | undefined, cmd: string): { file: 
       return { file: 'bash', args: ['-l', '-c', cmd] }
     case 'fish':
       return { file: 'fish', args: ['-l', '-c', cmd] }
+    case 'custom':
+      return { file: shellPath?.trim() || defaultUnixShell(), args: ['-l', '-c', cmd] }
     default:
       return { file: defaultUnixShell(), args: ['-l', '-c', cmd] }
   }
 }
 
 /** Risolve la coppia eseguibile/argomenti per la shell scelta. */
-function resolveShell(shell?: ShellKey): { file: string; args: string[] } {
+function resolveShell(shell?: ShellKey, shellPath?: string): { file: string; args: string[] } {
   if (process.platform !== 'win32') {
-    return resolveUnixShell(shell)
+    return resolveUnixShell(shell, shellPath)
   }
   switch (shell) {
     case 'pwsh':
@@ -93,6 +105,8 @@ function resolveShell(shell?: ShellKey): { file: string; args: string[] } {
       const found = GIT_BASH_CANDIDATES.find((p) => fs.existsSync(p))
       return { file: found || 'bash.exe', args: ['-i', '-l'] }
     }
+    case 'custom':
+      return { file: shellPath?.trim() || 'powershell.exe', args: [] }
     // 'default', 'powershell' e chiavi Unix persistite → PowerShell su Windows
     case 'powershell':
     default:
@@ -101,9 +115,13 @@ function resolveShell(shell?: ShellKey): { file: string; args: string[] } {
 }
 
 /** Come resolveShell, ma per eseguire un comando e uscire al suo termine. */
-function resolveShellRun(shell: ShellKey | undefined, cmd: string): { file: string; args: string[] } {
+function resolveShellRun(
+  shell: ShellKey | undefined,
+  cmd: string,
+  shellPath?: string
+): { file: string; args: string[] } {
   if (process.platform !== 'win32') {
-    return resolveUnixShellRun(shell, cmd)
+    return resolveUnixShellRun(shell, cmd, shellPath)
   }
   switch (shell) {
     case 'pwsh':
@@ -114,6 +132,8 @@ function resolveShellRun(shell: ShellKey | undefined, cmd: string): { file: stri
       const found = GIT_BASH_CANDIDATES.find((p) => fs.existsSync(p))
       return { file: found || 'bash.exe', args: ['-lc', cmd] }
     }
+    case 'custom':
+      return { file: shellPath?.trim() || 'powershell.exe', args: ['-NoLogo', '-NoProfile', '-Command', cmd] }
     case 'powershell':
     default:
       return { file: 'powershell.exe', args: ['-NoLogo', '-NoProfile', '-Command', cmd] }
@@ -139,7 +159,9 @@ function createSession(wc: WebContents, opts: CreateOpts): void {
 
   const cmd = opts.startupCommand?.trim() ?? ''
   const runExit = !!opts.closeOnExit && cmd !== ''
-  const { file, args } = runExit ? resolveShellRun(opts.shell, cmd) : resolveShell(opts.shell)
+  const { file, args } = runExit
+    ? resolveShellRun(opts.shell, cmd, opts.shellPath)
+    : resolveShell(opts.shell, opts.shellPath)
   const cwd = resolveCwd(opts.cwd)
 
   let proc: pty.IPty

@@ -20,7 +20,7 @@ function loadRenderer(win: BrowserWindow, search = ''): void {
   }
 }
 
-/** Selettore cartella nativo. Ritorna il percorso scelto o null se annullato. */
+/** Selettore cartella/file nativo. Ritorna il percorso scelto o null se annullato. */
 function registerDialogIpc(): void {
   ipcMain.handle('dialog:pickDirectory', async (e) => {
     const win = BrowserWindow.fromWebContents(e.sender) ?? undefined
@@ -29,6 +29,25 @@ function registerDialogIpc(): void {
       : await dialog.showOpenDialog({ properties: ['openDirectory'] })
     if (res.canceled || res.filePaths.length === 0) return null
     return res.filePaths[0]
+  })
+
+  // Sceglie l'eseguibile di una shell custom per un terminale del progetto.
+  ipcMain.handle('dialog:pickFile', async (e) => {
+    const win = BrowserWindow.fromWebContents(e.sender) ?? undefined
+    const res = win
+      ? await dialog.showOpenDialog(win, { properties: ['openFile'] })
+      : await dialog.showOpenDialog({ properties: ['openFile'] })
+    if (res.canceled || res.filePaths.length === 0) return null
+    return res.filePaths[0]
+  })
+}
+
+/** Apre la cartella del progetto nel file manager di sistema (Finder/Esplora risorse). */
+function registerShellIpc(): void {
+  ipcMain.handle('shell:open-path', async (_e, targetPath: string) => {
+    const target = targetPath && targetPath.trim() ? targetPath : app.getPath('home')
+    const err = await shell.openPath(target)
+    return err === ''
   })
 }
 
@@ -131,6 +150,7 @@ app.whenReady().then(() => {
   registerDialogIpc()
   registerProjectsIpc()
   registerWindowIpc()
+  registerShellIpc()
   createWindow()
 
   app.on('activate', () => {

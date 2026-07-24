@@ -136,7 +136,8 @@ export default function App(): React.ReactElement {
       projectId: p.id,
       title: cmd.label,
       color: p.color,
-      shell: p.shell,
+      shell: cmd.shell,
+      shellPath: cmd.shellPath,
       cwd: p.cwd,
       startupCommand: cmd.command,
       closeOnExit: cmd.closeOnExit
@@ -280,6 +281,7 @@ export default function App(): React.ReactElement {
           title: '',
           color: src.color,
           shell: src.shell,
+          shellPath: src.shellPath,
           cwd: src.cwd,
           startupCommand: ''
         }
@@ -637,7 +639,15 @@ export default function App(): React.ReactElement {
                   ) : (
                     <CaretDown size={12} color="var(--color-neutral-500)" style={{ flex: '0 0 auto' }} />
                   )}
-                  <Folder size={17} color={p.color} style={{ flex: '0 0 auto' }} />
+                  <span
+                    style={{
+                      flex: '0 0 auto',
+                      width: 10,
+                      height: 10,
+                      borderRadius: '50%',
+                      background: p.color
+                    }}
+                  />
                   <span
                     style={{
                       flex: '1 1 auto',
@@ -653,6 +663,27 @@ export default function App(): React.ReactElement {
                   >
                     {p.label}
                   </span>
+                  <div
+                    className="gear-btn"
+                    title="Apri cartella progetto"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      void window.dashiai.openInFileManager(p.cwd)
+                    }}
+                    style={{
+                      flex: '0 0 auto',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: 26,
+                      height: 26,
+                      borderRadius: 'var(--radius-sm)',
+                      color: 'var(--color-neutral-500)',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <Folder size={16} />
+                  </div>
                   <div
                     className="gear-btn"
                     title="Configura progetto"

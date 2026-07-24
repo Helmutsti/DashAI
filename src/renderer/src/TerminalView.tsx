@@ -21,6 +21,8 @@ export interface TerminalViewProps {
   termId: string
   /** opzioni di spawn, usate solo alla creazione (snapshot al mount). */
   shell?: ShellKey
+  /** percorso dell'eseguibile, usato quando shell === 'custom' */
+  shellPath?: string
   cwd?: string
   startupCommand?: string
   /** se true, la shell gira in modalità "esegui-ed-esci" e alla fine la card
@@ -46,6 +48,7 @@ export default function TerminalView(props: TerminalViewProps): React.ReactEleme
   // quindi congeliamo i valori correnti senza rieseguire l'effetto.
   const spawnRef = useRef({
     shell: props.shell,
+    shellPath: props.shellPath,
     cwd: props.cwd,
     startupCommand: props.startupCommand,
     closeOnExit: props.closeOnExit,
@@ -103,6 +106,7 @@ export default function TerminalView(props: TerminalViewProps): React.ReactEleme
         cols: term.cols,
         rows: term.rows,
         shell: s.shell,
+        shellPath: s.shellPath,
         cwd: s.cwd,
         startupCommand: s.startupCommand,
         closeOnExit: s.closeOnExit
