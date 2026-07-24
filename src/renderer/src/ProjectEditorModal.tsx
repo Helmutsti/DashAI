@@ -241,7 +241,7 @@ function AddTerminalButton({ onAdd }: { onAdd: (templateKey: string) => void }):
           <div
             style={{
               position: 'absolute',
-              top: 'calc(100% + 4px)',
+              bottom: 'calc(100% + 4px)',
               right: 0,
               zIndex: 41,
               minWidth: 190,

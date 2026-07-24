@@ -38,6 +38,12 @@ export default function App(): React.ReactElement {
   const [editingIsNew, setEditingIsNew] = useState(false)
   const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(new Set())
 
+  // Su macOS con titleBarStyle 'hiddenInset' i semafori (chiudi/min/max) stanno
+  // in alto a sinistra, sovrapposti al web content: riserviamo un'intera striscia
+  // in alto (stesso sfondo della finestra, non della sidebar) così i pallini non
+  // "sbattono" contro il pannello arrotondato. Su Windows/Linux resta 0.
+  const macTrafficLightInset = window.dashiai.platform === 'darwin' ? 28 : 0
+
   const toggleProject = (id: string): void =>
     setCollapsedProjects((s) => {
       const n = new Set(s)
@@ -522,9 +528,22 @@ export default function App(): React.ReactElement {
         color: 'var(--color-text)',
         fontFamily: 'var(--font-body)',
         padding: 'var(--space-4)',
+        paddingTop: `calc(var(--space-4) + ${macTrafficLightInset}px)`,
         gap: 'var(--space-4)'
       }}
     >
+      {macTrafficLightInset > 0 && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            height: `calc(var(--space-4) + ${macTrafficLightInset}px)`,
+            WebkitAppRegion: 'drag'
+          } as React.CSSProperties}
+        />
+      )}
       {!collapsed && (
         <div
           style={{
@@ -712,7 +731,7 @@ export default function App(): React.ReactElement {
           onClick={() => setCollapsed(false)}
           style={{
             position: 'absolute',
-            top: 'var(--space-4)',
+            top: `calc(var(--space-4) + ${macTrafficLightInset}px)`,
             left: 'var(--space-4)',
             zIndex: 5,
             width: 36,
