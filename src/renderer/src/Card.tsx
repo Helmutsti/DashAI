@@ -12,9 +12,10 @@ import {
 } from '@phosphor-icons/react'
 import type { CSSProperties } from 'react'
 import TerminalView from './TerminalView'
+import PromptView from './PromptView'
 import type { Column } from './types'
 
-/** Altezza approssimativa del menu a comparsa (5 voci fisse), per decidere se aprirlo sopra o sotto. */
+/** Altezza approssimativa del menu a comparsa, per decidere se aprirlo sopra o sotto. */
 const MENU_HEIGHT_ESTIMATE = 190
 
 export interface CardProps {
@@ -39,6 +40,8 @@ export interface CardProps {
   onProcessExit: () => void
   onToggleCollapse: () => void
   onDetach: () => void
+  /** (card prompt) salva il testo corrente nel progetto. */
+  onSavePrompt: (content: string) => void
 }
 
 export default function Card(props: CardProps): React.ReactElement {
@@ -79,7 +82,8 @@ export default function Card(props: CardProps): React.ReactElement {
   if (dropSide === 'before') cardRing += ', inset 4px 0 0 var(--color-accent)'
   if (dropSide === 'after') cardRing += ', inset -4px 0 0 var(--color-accent)'
 
-  const title = col.title || `Scheda ${r + 1}.${c + 1}`
+  const isPrompt = col.kind === 'prompt'
+  const title = col.title || (isPrompt ? 'Nuovo prompt' : `Scheda ${r + 1}.${c + 1}`)
 
   return (
     <div
@@ -95,7 +99,9 @@ export default function Card(props: CardProps): React.ReactElement {
         opacity: isDragged ? 0.4 : 1,
         background: cardBg,
         boxShadow: cardRing,
-        borderRadius: 'var(--radius-lg)',
+        // La sidebar ha zoom:var(--ui-scale) che scala anche il suo raggio; le
+        // card non sono zoomate, quindi scaliamo il raggio a mano per allinearle.
+        borderRadius: 'calc(var(--radius-lg) * var(--ui-scale))',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'stretch',
@@ -171,6 +177,8 @@ export default function Card(props: CardProps): React.ReactElement {
           />
         ) : (
           <div
+            onDoubleClick={props.onRename}
+            title="Doppio clic per rinominare"
             style={{
               flex: '1 1 auto',
               minWidth: 0,
@@ -182,7 +190,8 @@ export default function Card(props: CardProps): React.ReactElement {
               fontWeight: 600,
               letterSpacing: '0.08em',
               textTransform: 'uppercase',
-              color: color || 'var(--color-accent)'
+              color: color || 'var(--color-accent)',
+              cursor: 'text'
             }}
           >
             {title}
@@ -240,10 +249,12 @@ export default function Card(props: CardProps): React.ReactElement {
                 <Trash size={16} />
                 Chiudi
               </div>
-              <div className="menu-item" onClick={props.onNewCard} style={menuItemStyle}>
-                <Plus size={16} />
-                Nuova scheda
-              </div>
+              {!isPrompt && (
+                <div className="menu-item" onClick={props.onNewCard} style={menuItemStyle}>
+                  <Plus size={16} />
+                  Nuova scheda
+                </div>
+              )}
               <div
                 className="menu-item"
                 onClick={(e) => {
@@ -255,24 +266,26 @@ export default function Card(props: CardProps): React.ReactElement {
                 {col.collapsed ? <CaretDown size={16} /> : <CaretUp size={16} />}
                 {col.collapsed ? 'Espandi' : 'Comprimi'}
               </div>
-              <div
-                className="menu-item"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  props.onDetach()
-                }}
-                style={menuItemStyle}
-              >
-                <ArrowSquareOut size={16} />
-                Estrai in finestra
-              </div>
+              {!isPrompt && (
+                <div
+                  className="menu-item"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    props.onDetach()
+                  }}
+                  style={menuItemStyle}
+                >
+                  <ArrowSquareOut size={16} />
+                  Estrai in finestra
+                </div>
+              )}
             </div>,
             document.body
           )}
       </div>
 
-      {/* Corpo = terminale vero. Resta MONTATO anche se compresso (così la pty
-          non muore); viene solo nascosto. */}
+      {/* Corpo. Resta MONTATO anche se compresso (così la pty non muore e il
+          testo del prompt non va perso); viene solo nascosto. */}
       <div
         style={{
           flex: '1 1 auto',
@@ -282,15 +295,24 @@ export default function Card(props: CardProps): React.ReactElement {
           flexDirection: 'column'
         }}
       >
-        <TerminalView
-          termId={col.id}
-          shell={col.shell}
-          shellPath={col.shellPath}
-          cwd={col.cwd}
-          startupCommand={col.startupCommand}
-          closeOnExit={col.closeOnExit}
-          onProcessExit={props.onProcessExit}
-        />
+        {isPrompt ? (
+          <PromptView
+            termId={col.id}
+            initialContent={col.content}
+            saved={!!col.promptId}
+            onSave={props.onSavePrompt}
+          />
+        ) : (
+          <TerminalView
+            termId={col.id}
+            shell={col.shell}
+            shellPath={col.shellPath}
+            cwd={col.cwd}
+            startupCommand={col.startupCommand}
+            closeOnExit={col.closeOnExit}
+            onProcessExit={props.onProcessExit}
+          />
+        )}
       </div>
     </div>
   )

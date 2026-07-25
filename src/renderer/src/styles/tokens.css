@@ -36,4 +36,31 @@
   --font-body: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-heading: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-heading-weight: 500;
+
+  /* Fattore di scala dell'interfaccia (impostazioni: "Dimensione interfaccia"). */
+  --ui-scale: 1;
+}
+
+/* Tema chiaro: override dei token derivato dal set scuro. Attivato da
+   SettingsContext con data-theme="light" su :root. Le regole in app.css usano
+   solo queste variabili (+ color-mix), quindi si adattano da sole. */
+:root[data-theme='light'] {
+  --color-bg: #f4f4f5;
+  --color-surface: #ffffff;
+  --color-text: #1b1b1b;
+  --color-divider: rgba(0, 0, 0, 0.12);
+  --color-accent: #1b1b1b; /* highlight monocromatico scuro su chiaro */
+
+  --color-neutral-300: #454545;
+  --color-neutral-400: #6a6a6a;
+  --color-neutral-500: #7a7a7a;
+  --color-neutral-700: #c4c4c4;
+  --color-neutral-800: #cccccc;
+  --color-neutral-900: #e3e3e3;
+
+  --color-danger: #d14b54;
+
+  --shadow-sm: 0 0 0 1px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 0 0 1px rgba(0, 0, 0, 0.1), 0 6px 18px rgba(0, 0, 0, 0.12);
+  --shadow-lg: 0 0 0 1px rgba(0, 0, 0, 0.1), 0 16px 40px rgba(0, 0, 0, 0.18);
 }

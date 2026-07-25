@@ -1,9 +1,12 @@
 {
-  "name": "dashiai-app",
+  "name": "dashai-app",
   "version": "0.1.0",
   "private": true,
-  "description": "DashIAI — workspace di schede-chat ridimensionabili (Electron + React). Layout stile 'Layout Grid App'; predisposta per terminali integrati stile VSCode.",
-  "author": "DashIAI",
+  "description": "DashAI — workspace di schede-chat ridimensionabili (Electron + React). Layout stile 'Layout Grid App'; predisposta per terminali integrati stile VSCode.",
+  "author": {
+    "name": "Helmutsti",
+    "email": "manuc.1297@gmail.com"
+  },
   "main": "out/main/index.js",
   "type": "module",
   "scripts": {
@@ -11,6 +14,8 @@
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.json",
+    "make:icon": "powershell -NoProfile -ExecutionPolicy Bypass -File build/make-icon.ps1",
+    "make:cert": "powershell -NoProfile -ExecutionPolicy Bypass -File build/make-cert.ps1",
     "dist:win": "electron-vite build && electron-builder --win",
     "dist:mac": "electron-vite build && electron-builder --mac",
     "dist:linux": "electron-vite build && electron-builder --linux"

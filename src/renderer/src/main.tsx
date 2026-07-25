@@ -12,6 +12,7 @@ import './styles/tokens.css'
 import './styles/app.css'
 import App from './App'
 import DetachedTerminal from './DetachedTerminal'
+import { SettingsProvider } from './SettingsContext'
 
 const container = document.getElementById('root')
 if (!container) throw new Error('#root non trovato')
@@ -30,4 +31,8 @@ const root = term ? (
   <App />
 )
 
-createRoot(container).render(<React.StrictMode>{root}</React.StrictMode>)
+createRoot(container).render(
+  <React.StrictMode>
+    <SettingsProvider>{root}</SettingsProvider>
+  </React.StrictMode>
+)

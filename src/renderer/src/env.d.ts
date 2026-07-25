@@ -1,10 +1,10 @@
-/// <reference types="vite/client" />
+﻿/// <reference types="vite/client" />
 
-import type { DashiaiApi } from '../../preload'
+import type { DashaiApi } from '../../preload'
 
 declare global {
   interface Window {
-    dashiai: DashiaiApi
+    dashai: DashaiApi
   }
 }
 

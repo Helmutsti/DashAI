@@ -1,15 +1,30 @@
-import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
-import { CaretDown, CaretRight, Folder, Gear, Plus } from '@phosphor-icons/react'
+﻿import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
+import {
+  CaretDoubleLeft,
+  CaretDoubleRight,
+  CaretDown,
+  CaretRight,
+  Folder,
+  Gear,
+  PencilSimple,
+  Plus,
+  Trash
+} from '@phosphor-icons/react'
 import Card from './Card'
 import BrandMark from './BrandMark'
 import ProjectEditorModal from './ProjectEditorModal'
+import SettingsModal from './SettingsModal'
+import { useSettings } from './SettingsContext'
 import { Icon } from './icons'
 import { newColId, type Column, type Row } from './types'
 import {
   PROJECTS_VERSION,
+  makePrompt,
   makeProject,
+  normalizeProjects,
   seedProjects,
   type Project,
+  type Prompt,
   type ProjectsFile,
   type QuickCommand
 } from './projects'
@@ -37,18 +52,20 @@ export default function App(): React.ReactElement {
   const [editingProject, setEditingProject] = useState<Project | null>(null)
   const [editingIsNew, setEditingIsNew] = useState(false)
   const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(new Set())
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const { t } = useSettings()
 
   // Su macOS con titleBarStyle 'hiddenInset' i semafori (chiudi/min/max) stanno
   // in alto a sinistra, sovrapposti al web content: riserviamo un'intera striscia
-  // in alto (stesso sfondo della finestra, non della sidebar) così i pallini non
+  // in alto (stesso sfondo della finestra, non della sidebar) cosÃ¬ i pallini non
   // "sbattono" contro il pannello arrotondato. Su Windows/Linux resta 0.
   // In fullscreen nativo i semafori spariscono: niente da riservare.
   const [isFullScreen, setIsFullScreen] = useState(false)
   useEffect(() => {
-    void window.dashiai.isFullScreen().then(setIsFullScreen)
-    return window.dashiai.onFullScreenChange(setIsFullScreen)
+    void window.dashai.isFullScreen().then(setIsFullScreen)
+    return window.dashai.onFullScreenChange(setIsFullScreen)
   }, [])
-  const macTrafficLightInset = window.dashiai.platform === 'darwin' && !isFullScreen ? 28 : 0
+  const macTrafficLightInset = window.dashai.platform === 'darwin' && !isFullScreen ? 28 : 0
 
   const toggleProject = (id: string): void =>
     setCollapsedProjects((s) => {
@@ -68,14 +85,18 @@ export default function App(): React.ReactElement {
   useEffect(() => {
     let alive = true
     void (async () => {
-      const data = (await window.dashiai.projects.load()) as ProjectsFile | null
+      const data = (await window.dashai.projects.load()) as ProjectsFile | null
       if (!alive) return
       if (data && Array.isArray(data.projects) && data.projects.length > 0) {
-        setProjects(data.projects)
+        const list = normalizeProjects(data.projects)
+        setProjects(list)
+        // All'avvio i progetti sono tutti collassati.
+        setCollapsedProjects(new Set(list.map((p) => p.id)))
       } else {
         const seed = seedProjects()
         setProjects(seed.projects)
-        void window.dashiai.projects.save(seed)
+        setCollapsedProjects(new Set(seed.projects.map((p) => p.id)))
+        void window.dashai.projects.save(seed)
       }
     })()
     return () => {
@@ -85,10 +106,10 @@ export default function App(): React.ReactElement {
 
   const persistProjects = (next: Project[]): void => {
     setProjects(next)
-    void window.dashiai.projects.save({ version: PROJECTS_VERSION, projects: next } satisfies ProjectsFile)
+    void window.dashai.projects.save({ version: PROJECTS_VERSION, projects: next } satisfies ProjectsFile)
   }
 
-  // Il "+" apre una BOZZA: nulla viene aggiunto finché non si salva.
+  // Il "+" apre una BOZZA: nulla viene aggiunto finchÃ© non si salva.
   const addProject = (): void => {
     setEditingProject(makeProject({ label: `Progetto ${projects.length + 1}` }))
     setEditingIsNew(true)
@@ -106,7 +127,7 @@ export default function App(): React.ReactElement {
       persistProjects([...projects, p])
     } else {
       persistProjects(projects.map((x) => (x.id === p.id ? p : x)))
-      // Il colore progetto è il colore delle sue card: applicalo alle card aperte.
+      // Il colore progetto Ã¨ il colore delle sue card: applicalo alle card aperte.
       setRows((s) =>
         s.map((row) => ({
           ...row,
@@ -117,14 +138,14 @@ export default function App(): React.ReactElement {
     closeEditor()
   }
   const deleteProject = (id: string): void => {
-    // Se è una bozza non ancora salvata, si limita a scartarla.
+    // Se Ã¨ una bozza non ancora salvata, si limita a scartarla.
     if (!editingIsNew) persistProjects(projects.filter((x) => x.id !== id))
     closeEditor()
   }
 
   // --- Apertura card da progetto / comando --------------------------------
-  const openColumn = (partial: Omit<Column, 'id' | 'w'>): void => {
-    const col: Column = { id: newColId(), w: 1, ...partial }
+  const openColumn = (partial: Omit<Column, 'id' | 'w'>, w = 1): void => {
+    const col: Column = { id: newColId(), w, ...partial }
     setRows((s) =>
       s.length === 0
         ? [{ h: 1, cols: [col] }]
@@ -143,8 +164,66 @@ export default function App(): React.ReactElement {
       closeOnExit: cmd.closeOnExit
     })
 
+  // Apre una card editor: nuovo prompt vuoto oppure un prompt salvato del progetto.
+  // Nasce più stretta dei terminali (w<1) così si distingue anche per dimensione.
+  const openPromptCard = (p: Project, prompt?: Prompt): void =>
+    openColumn(
+      {
+        kind: 'prompt',
+        projectId: p.id,
+        title: prompt?.label ?? 'Nuovo prompt',
+        color: p.color,
+        promptId: prompt?.id,
+        content: prompt?.content ?? ''
+      },
+      0.6
+    )
+
+  // Salva il testo di una card prompt nel progetto: aggiorna quello legato
+  // (promptId) o ne crea uno nuovo, legando poi la card al prompt creato.
+  const savePrompt = (col: Column, content: string): void => {
+    const project = projects.find((x) => x.id === col.projectId)
+    if (!project) return
+    if (col.promptId) {
+      const pid = col.promptId
+      persistProjects(
+        projects.map((x) =>
+          x.id !== project.id
+            ? x
+            : {
+                ...x,
+                prompts: x.prompts.map((pr) =>
+                  pr.id === pid ? { ...pr, label: col.title || pr.label, content } : pr
+                )
+              }
+        )
+      )
+    } else {
+      const created = makePrompt({ label: col.title || 'Nuovo prompt', content })
+      persistProjects(
+        projects.map((x) =>
+          x.id !== project.id ? x : { ...x, prompts: [...x.prompts, created] }
+        )
+      )
+      // Lega la card al prompt appena creato: i salvataggi successivi lo aggiornano.
+      setRows((s) =>
+        s.map((row) => ({
+          ...row,
+          cols: row.cols.map((c) => (c.id === col.id ? { ...c, promptId: created.id } : c))
+        }))
+      )
+    }
+  }
+
+  const deletePrompt = (projectId: string, promptId: string): void =>
+    persistProjects(
+      projects.map((x) =>
+        x.id !== projectId ? x : { ...x, prompts: x.prompts.filter((pr) => pr.id !== promptId) }
+      )
+    )
+
   const removeColById = (id: string): void => {
-    window.dashiai.terminal.dispose(id)
+    window.dashai.terminal.dispose(id)
     setRows((s) =>
       s
         .map((row) => ({ ...row, cols: row.cols.filter((c) => c.id !== id) }))
@@ -170,13 +249,13 @@ export default function App(): React.ReactElement {
         .map((row) => ({ ...row, cols: row.cols.filter((c) => c.id !== col.id) }))
         .filter((row) => row.cols.length > 0)
     )
-    window.dashiai.terminal.detachOpen(col.id, col.title || 'Terminale', col.color)
+    window.dashai.terminal.detachOpen(col.id, col.title || 'Terminale', col.color)
   }
 
   // Riaggancio (finestra estratta chiusa via X o "Riaggancia"): reinserisci la
   // card conservando il colore e riprendi l'output.
   useEffect(() => {
-    const off = window.dashiai.terminal.onRedock((id) => {
+    const off = window.dashai.terminal.onRedock((id) => {
       const col = detachedRef.current.get(id)
       if (col) {
         detachedRef.current.delete(id)
@@ -186,7 +265,7 @@ export default function App(): React.ReactElement {
             : s.map((row, i) => (i === 0 ? { ...row, cols: [...row.cols, col] } : row))
         )
       }
-      window.dashiai.terminal.attach(id)
+      window.dashai.terminal.attach(id)
     })
     return off
   }, [])
@@ -293,7 +372,7 @@ export default function App(): React.ReactElement {
   const removeCol = (r: number, c: number): void => {
     setOpenMenu(null)
     const col = rows[r]?.cols[c]
-    if (col) window.dashiai.terminal.dispose(col.id) // termina la shell
+    if (col) window.dashai.terminal.dispose(col.id) // termina la shell
     setRows((s) =>
       s
         .map((row, ri) => (ri === r ? { ...row, cols: row.cols.filter((_, ci) => ci !== c) } : row))
@@ -410,9 +489,9 @@ export default function App(): React.ReactElement {
     // intestazioni (riga di "card parcheggiate").
     const allCollapsed = row.cols.length > 0 && row.cols.every((c) => c.collapsed)
     // Normalizza i pesi SOLO per il render (non lo stato): dopo che una card
-    // viene chiusa/estratta/spostata, la somma dei col.w residui può scendere
+    // viene chiusa/estratta/spostata, la somma dei col.w residui puÃ² scendere
     // sotto 1. CSS flexbox non distribuisce lo spazio libero oltre alla somma
-    // dei flex-grow quando questa è < 1, lasciando un vuoto invece di
+    // dei flex-grow quando questa Ã¨ < 1, lasciando un vuoto invece di
     // riempire la riga. Il drag-resize continua a leggere col.w grezzo dallo
     // stato (rapporti relativi, non toccati da questa normalizzazione).
     const totalW = row.cols.reduce((sum, c) => sum + c.w, 0) || row.cols.length || 1
@@ -427,7 +506,7 @@ export default function App(): React.ReactElement {
       }}
     >
       <div style={{ flex: allCollapsed ? '0 0 auto' : '1 1 0%', display: 'flex', minHeight: 0 }}>
-        {/* grid: sempre a piena larghezza (flex:1) così le card compresse NON
+        {/* grid: sempre a piena larghezza (flex:1) cosÃ¬ le card compresse NON
             perdono la dimensione orizzontale */}
         <div style={{ flex: 1, display: 'flex', minWidth: 0, position: 'relative' }}>
           {row.cols.map((col, c) => {
@@ -470,6 +549,7 @@ export default function App(): React.ReactElement {
                   onProcessExit={() => removeColById(id)}
                   onToggleCollapse={() => toggleCollapse(id)}
                   onDetach={() => detachCard(col)}
+                  onSavePrompt={(content) => savePrompt(col, content)}
                 />
                 {c < row.cols.length - 1 && (
                   <div
@@ -571,8 +651,9 @@ export default function App(): React.ReactElement {
             display: 'flex',
             flexDirection: 'column',
             padding: 'var(--space-6) var(--space-4)',
-            minHeight: 0
-          }}
+            minHeight: 0,
+            zoom: 'var(--ui-scale)'
+          } as React.CSSProperties}
         >
           {/* Brand + azioni */}
           <div style={{ flex: '0 0 auto', display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
@@ -602,7 +683,7 @@ export default function App(): React.ReactElement {
               <Plus size={15} />
             </div>
             <div className="collapse-btn" title="Collassa" onClick={() => setCollapsed(true)} style={iconSquare}>
-              «
+              <CaretDoubleLeft size={15} />
             </div>
           </div>
 
@@ -620,11 +701,13 @@ export default function App(): React.ReactElement {
           >
             {projects.map((p) => (
               <div key={p.id} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
-                {/* Riga progetto: clic = espandi/comprimi i comandi */}
+                {/* Riga progetto: clic = espandi/comprimi i comandi. L'intero item
+                    è tinto con una versione tenue del colore progetto (--proj-tint). */}
                 <div
                   className="project-row"
                   onClick={() => toggleProject(p.id)}
                   style={{
+                    ['--proj-tint' as string]: p.color,
                     display: 'flex',
                     alignItems: 'center',
                     gap: 'var(--space-2)',
@@ -632,22 +715,13 @@ export default function App(): React.ReactElement {
                     borderRadius: 'var(--radius-md)',
                     cursor: 'pointer',
                     minWidth: 0
-                  }}
+                  } as React.CSSProperties}
                 >
                   {collapsedProjects.has(p.id) ? (
                     <CaretRight size={12} color="var(--color-neutral-500)" style={{ flex: '0 0 auto' }} />
                   ) : (
                     <CaretDown size={12} color="var(--color-neutral-500)" style={{ flex: '0 0 auto' }} />
                   )}
-                  <span
-                    style={{
-                      flex: '0 0 auto',
-                      width: 10,
-                      height: 10,
-                      borderRadius: '50%',
-                      background: p.color
-                    }}
-                  />
                   <span
                     style={{
                       flex: '1 1 auto',
@@ -668,7 +742,7 @@ export default function App(): React.ReactElement {
                     title="Apri cartella progetto"
                     onClick={(e) => {
                       e.stopPropagation()
-                      void window.dashiai.openInFileManager(p.cwd)
+                      void window.dashai.openInFileManager(p.cwd)
                     }}
                     style={{
                       flex: '0 0 auto',
@@ -707,41 +781,135 @@ export default function App(): React.ReactElement {
                   </div>
                 </div>
 
-                {/* Comandi rapidi (annidati) — visibili se il progetto è espanso */}
-                {!collapsedProjects.has(p.id) &&
-                  p.commands.map((cmd) => (
-                  <div
-                    key={cmd.id}
-                    className="cmd-row"
-                    onClick={() => openCommandCard(p, cmd)}
-                    title={cmd.command || cmd.label}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 'var(--space-3)',
-                      padding: 'var(--space-2) var(--space-3)',
-                      marginLeft: 'var(--space-5)',
-                      borderRadius: 'var(--radius-sm)',
-                      cursor: 'pointer',
-                      minWidth: 0
-                    }}
-                  >
-                    <Icon name={cmd.icon} size={14} color="var(--color-neutral-400)" style={{ flex: '0 0 auto' }} />
-                    <span
+                {/* Contenuto annidato del progetto (visibile se espanso):
+                    "nuovo prompt", prompt salvati, poi i comandi/terminali. */}
+                {!collapsedProjects.has(p.id) && (
+                  <>
+                    {/* "nuovo prompt": apre subito una card editor di testo */}
+                    <div
+                      className="cmd-row"
+                      onClick={() => openPromptCard(p)}
+                      title="Nuovo prompt"
                       style={{
-                        flex: '1 1 auto',
-                        minWidth: 0,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                        fontSize: 13,
-                        color: 'var(--color-neutral-300)'
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 'var(--space-3)',
+                        padding: 'var(--space-2) var(--space-3)',
+                        marginLeft: 'var(--space-5)',
+                        borderRadius: 'var(--radius-sm)',
+                        cursor: 'pointer',
+                        minWidth: 0
                       }}
                     >
-                      {cmd.label}
-                    </span>
-                  </div>
-                ))}
+                      <PencilSimple size={14} color="var(--color-neutral-400)" style={{ flex: '0 0 auto' }} />
+                      <span
+                        style={{
+                          flex: '1 1 auto',
+                          minWidth: 0,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          fontSize: 13,
+                          fontStyle: 'italic',
+                          color: 'var(--color-neutral-400)'
+                        }}
+                      >
+                        nuovo prompt
+                      </span>
+                    </div>
+
+                    {/* Prompt salvati: clic = riapri la card; cestino su hover = elimina */}
+                    {p.prompts.map((pr) => (
+                      <div
+                        key={pr.id}
+                        className="cmd-row"
+                        onClick={() => openPromptCard(p, pr)}
+                        title={pr.label}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 'var(--space-3)',
+                          padding: 'var(--space-2) var(--space-3)',
+                          marginLeft: 'var(--space-5)',
+                          borderRadius: 'var(--radius-sm)',
+                          cursor: 'pointer',
+                          minWidth: 0
+                        }}
+                      >
+                        <PencilSimple size={14} color="var(--color-neutral-400)" style={{ flex: '0 0 auto' }} />
+                        <span
+                          style={{
+                            flex: '1 1 auto',
+                            minWidth: 0,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            fontSize: 13,
+                            color: 'var(--color-neutral-300)'
+                          }}
+                        >
+                          {pr.label}
+                        </span>
+                        <div
+                          className="gear-btn"
+                          title="Elimina prompt"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            deletePrompt(p.id, pr.id)
+                          }}
+                          style={{
+                            flex: '0 0 auto',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: 22,
+                            height: 22,
+                            borderRadius: 'var(--radius-sm)',
+                            color: 'var(--color-neutral-500)',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <Trash size={13} />
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* Comandi rapidi / terminali */}
+                    {p.commands.map((cmd) => (
+                      <div
+                        key={cmd.id}
+                        className="cmd-row"
+                        onClick={() => openCommandCard(p, cmd)}
+                        title={cmd.command || cmd.label}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 'var(--space-3)',
+                          padding: 'var(--space-2) var(--space-3)',
+                          marginLeft: 'var(--space-5)',
+                          borderRadius: 'var(--radius-sm)',
+                          cursor: 'pointer',
+                          minWidth: 0
+                        }}
+                      >
+                        <Icon name={cmd.icon} size={14} color="var(--color-neutral-400)" style={{ flex: '0 0 auto' }} />
+                        <span
+                          style={{
+                            flex: '1 1 auto',
+                            minWidth: 0,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            fontSize: 13,
+                            color: 'var(--color-neutral-300)'
+                          }}
+                        >
+                          {cmd.label}
+                        </span>
+                      </div>
+                    ))}
+                  </>
+                )}
               </div>
             ))}
           </div>
@@ -749,6 +917,7 @@ export default function App(): React.ReactElement {
           {/* Impostazioni (in basso) */}
           <div
             className="nav-item"
+            onClick={() => setSettingsOpen(true)}
             style={{
               flex: '0 0 auto',
               marginTop: 'var(--space-3)',
@@ -763,7 +932,7 @@ export default function App(): React.ReactElement {
             }}
           >
             <Gear size={17} style={{ flex: '0 0 auto' }} />
-            <span>Impostazioni</span>
+            <span>{t('nav.settings')}</span>
           </div>
         </div>
       )}
@@ -792,7 +961,7 @@ export default function App(): React.ReactElement {
             cursor: 'pointer'
           }}
         >
-          »
+          <CaretDoubleRight size={16} />
         </div>
       )}
 
@@ -819,6 +988,15 @@ export default function App(): React.ReactElement {
           onSave={saveProject}
           onDelete={deleteProject}
           onClose={closeEditor}
+        />
+      )}
+
+      {settingsOpen && (
+        <SettingsModal
+          projects={projects}
+          projectsVersion={PROJECTS_VERSION}
+          onReplaceProjects={(next) => persistProjects(next)}
+          onClose={() => setSettingsOpen(false)}
         />
       )}
     </div>

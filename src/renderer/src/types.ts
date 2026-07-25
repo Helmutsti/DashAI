@@ -8,6 +8,8 @@ export interface Column {
   projectId?: string
   /** peso di larghezza (grow factor flexbox) */
   w: number
+  /** tipo di card: terminale (default) o editor di prompt testuale. */
+  kind?: 'terminal' | 'prompt'
   title: string
   color: string
   /** configurazione di spawn della shell (per-card, snapshot alla creazione) */
@@ -18,6 +20,10 @@ export interface Column {
   startupCommand?: string
   /** chiudi la card quando il processo termina (comandi "chiudi al termine") */
   closeOnExit?: boolean
+  /** (kind='prompt') id del prompt salvato nel progetto a cui è legata la card */
+  promptId?: string
+  /** (kind='prompt') testo iniziale con cui montare l'editor */
+  content?: string
   /** card compressa (solo intestazione visibile) */
   collapsed?: boolean
   /** card estratta in una finestra separata */

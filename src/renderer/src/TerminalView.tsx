@@ -1,7 +1,8 @@
-import { useEffect, useRef } from 'react'
+﻿import { useEffect, useRef } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import type { ShellKey } from './projects'
+import { useSettings } from './SettingsContext'
 
 /** Tema del terminale (stato originale, prima dell'esperimento "trasparenza"). */
 const THEME = {
@@ -25,24 +26,32 @@ export interface TerminalViewProps {
   shellPath?: string
   cwd?: string
   startupCommand?: string
-  /** se true, la shell gira in modalità "esegui-ed-esci" e alla fine la card
+  /** se true, la shell gira in modalitÃ  "esegui-ed-esci" e alla fine la card
    *  viene chiusa (via onProcessExit). */
   closeOnExit?: boolean
   onProcessExit?: () => void
-  /** modalità aggancio: NON crea né distrugge la pty, si limita a ridirigere
+  /** modalitÃ  aggancio: NON crea nÃ© distrugge la pty, si limita a ridirigere
    *  l'output verso questa vista (usata dalla finestra estratta). */
   attach?: boolean
 }
 
 /**
  * Superficie terminale: crea un xterm.js, lo collega alla pty nel main via
- * `window.dashiai.terminal` e lo mantiene ridimensionato con FitAddon.
- * Montato una sola volta per `termId`: finché la card vive (anche se riordinata),
+ * `window.dashai.terminal` e lo mantiene ridimensionato con FitAddon.
+ * Montato una sola volta per `termId`: finchÃ© la card vive (anche se riordinata),
  * la shell non viene ricreata.
  */
 export default function TerminalView(props: TerminalViewProps): React.ReactElement {
   const { termId } = props
   const hostRef = useRef<HTMLDivElement>(null)
+  const termRef = useRef<Terminal | null>(null)
+  const fitRef = useRef<FitAddon | null>(null)
+
+  // Font terminale dalle impostazioni: snapshot per la creazione (senza rieseguire
+  // l'effetto di mount) + aggiornamento dal vivo tramite l'effetto piu sotto.
+  const { settings } = useSettings()
+  const fontSizeRef = useRef(settings.terminalFontSize)
+  fontSizeRef.current = settings.terminalFontSize
 
   // Snapshot delle opzioni di spawn: la shell si crea una sola volta al mount,
   // quindi congeliamo i valori correnti senza rieseguire l'effetto.
@@ -64,14 +73,16 @@ export default function TerminalView(props: TerminalViewProps): React.ReactEleme
 
     const term = new Terminal({
       fontFamily: 'ui-monospace, Menlo, Consolas, monospace',
-      fontSize: 12.5,
+      fontSize: fontSizeRef.current,
       lineHeight: 1.2,
       cursorBlink: true,
       theme: THEME,
       allowProposedApi: true,
       scrollback: 5000
     })
+    termRef.current = term
     const fit = new FitAddon()
+    fitRef.current = fit
     term.loadAddon(fit)
     term.open(host)
 
@@ -85,7 +96,7 @@ export default function TerminalView(props: TerminalViewProps): React.ReactEleme
     safeFit()
 
     const s = spawnRef.current
-    const api = window.dashiai.terminal
+    const api = window.dashai.terminal
     const offData = api.onData(termId, (data) => term.write(data))
     const offExit = api.onExit(termId, () => {
       if (s.closeOnExit) {
@@ -116,7 +127,7 @@ export default function TerminalView(props: TerminalViewProps): React.ReactEleme
     const offInput = term.onData((data) => api.input(termId, data))
 
     // Ridimensiona la pty quando il contenitore (card/row/window) cambia size.
-    // Se l'host è nascosto (0px, es. card compressa/estratta) non fare nulla:
+    // Se l'host Ã¨ nascosto (0px, es. card compressa/estratta) non fare nulla:
     // eviterebbe di rimpicciolire la pty a 0 disturbando la finestra estratta.
     const ro = new ResizeObserver(() => {
       if (host.clientWidth === 0 || host.clientHeight === 0) return
@@ -133,14 +144,29 @@ export default function TerminalView(props: TerminalViewProps): React.ReactEleme
       offExit()
       offInput.dispose()
       term.dispose()
+      termRef.current = null
+      fitRef.current = null
       // NB: la pty NON viene distrutta allo smontaggio della vista. Il suo ciclo
-      // di vita è gestito esplicitamente da App (chiusura card) / finestra
-      // estratta, così estrarre o spostare una card non uccide la shell.
+      // di vita Ã¨ gestito esplicitamente da App (chiusura card) / finestra
+      // estratta, cosÃ¬ estrarre o spostare una card non uccide la shell.
     }
   }, [termId])
 
+  // Aggiorna il font dei terminali gia aperti quando cambia l'impostazione.
+  useEffect(() => {
+    const term = termRef.current
+    if (!term) return
+    term.options.fontSize = settings.terminalFontSize
+    try {
+      fitRef.current?.fit()
+    } catch {
+      /* host non ancora dimensionato */
+    }
+    window.dashai.terminal.resize(termId, term.cols, term.rows)
+  }, [settings.terminalFontSize, termId])
+
   return (
-    // Box del terminale: stroke arrotondato + padding interno così il testo
+    // Box del terminale: stroke arrotondato + padding interno cosÃ¬ il testo
     // non tocca il bordo. Lo sfondo scuro pieno stacca dal colore della card.
     <div
       style={{

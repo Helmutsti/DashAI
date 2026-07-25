@@ -51,8 +51,12 @@ input:focus {
   color: var(--color-accent);
 }
 
+/* Tinta tenue del colore progetto sull'intero item (var per-progetto inline). */
+.project-row {
+  background: color-mix(in srgb, var(--proj-tint, transparent) 14%, transparent);
+}
 .project-row:hover {
-  background: color-mix(in srgb, var(--color-text) 6%, transparent);
+  background: color-mix(in srgb, var(--proj-tint, var(--color-text)) 26%, transparent);
 }
 .cmd-row:hover {
   background: color-mix(in srgb, var(--color-accent) 10%, transparent);

@@ -1,4 +1,5 @@
-productName: DashIAI
+productName: DashAI
+appId: com.helmutsti.dashai
 
 # node-pty spedisce prebuild N-API (ABI-stabili): niente ricompilazione nativa,
 # così il build non richiede Visual Studio / Xcode command line tools.
@@ -22,12 +23,27 @@ asarUnpack:
 
 # ---- Windows ----
 win:
+  # Icona dell'eseguibile e degli installer (generata da resources/icon.png
+  # con build/make-icon.ps1). electron-builder la troverebbe da solo in build/,
+  # la esplicitiamo per chiarezza.
+  icon: build/icon.ico
   target:
     - target: nsis      # installer classico
       arch: [x64]
     - target: portable  # singolo .exe eseguibile senza installazione
       arch: [x64]
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
+  # ---- Firma (certificato self-signed generato da build/make-cert.ps1) ----
+  # Il .pfx NON è versionato (vedi .gitignore): rigeneralo con lo script se manca.
+  # La password è di un certificato usa-e-getta, non protegge nulla di sensibile;
+  # può essere sovrascritta con la variabile d'ambiente CSC_KEY_PASSWORD.
+  # NB: essendo self-signed, SmartScreen mostra comunque "editore sconosciuto"
+  # sui PC dove il certificato non è tra gli Autori attendibili.
+  signtoolOptions:
+    certificateFile: build/DashAI-selfsigned.pfx
+    certificatePassword: dashai-dev
+    signingHashAlgorithms:
+      - sha256
 
 nsis:
   oneClick: false

@@ -69,6 +69,14 @@ export interface QuickCommand {
   shellPath?: string
 }
 
+/** Prompt di testo salvato nel progetto (editor semplice, non un terminale). */
+export interface Prompt {
+  id: string
+  label: string
+  /** testo libero del prompt */
+  content: string
+}
+
 export interface Project {
   id: string
   label: string
@@ -76,6 +84,8 @@ export interface Project {
   color: string
   /** cartella di partenza; '' = home utente */
   cwd: string
+  /** prompt di testo salvati (editor semplice con copia). */
+  prompts: Prompt[]
   /** terminali lanciabili (shell pulita, comandi, avvii AI: tutti uguali). */
   commands: QuickCommand[]
 }
@@ -95,6 +105,7 @@ function uid(prefix: string): string {
 }
 export const newProjectId = (): string => uid('p')
 export const newCommandId = (): string => uid('c')
+export const newPromptId = (): string => uid('pr')
 
 export function makeProject(partial?: Partial<Project>): Project {
   return {
@@ -103,6 +114,7 @@ export function makeProject(partial?: Partial<Project>): Project {
     icon: 'Folder',
     color: TOP_COLORS[1],
     cwd: '',
+    prompts: [],
     commands: [],
     ...partial
   }
@@ -118,6 +130,32 @@ export function makeCommand(partial?: Partial<QuickCommand>): QuickCommand {
     shell: 'default',
     ...partial
   }
+}
+
+export function makePrompt(partial?: Partial<Prompt>): Prompt {
+  return {
+    id: newPromptId(),
+    label: 'Nuovo prompt',
+    content: '',
+    ...partial
+  }
+}
+
+/**
+ * Normalizza i progetti letti da disco/import: garantisce che `prompts` e
+ * `commands` siano array (file salvati prima dell'introduzione dei prompt non
+ * hanno il campo `prompts`).
+ */
+export function normalizeProjects(arr: unknown): Project[] {
+  if (!Array.isArray(arr)) return []
+  return arr.map((raw) => {
+    const p = raw as Partial<Project>
+    return {
+      ...(p as Project),
+      prompts: Array.isArray(p.prompts) ? p.prompts : [],
+      commands: Array.isArray(p.commands) ? p.commands : []
+    }
+  })
 }
 
 /** Stato iniziale quando il file non esiste ancora. */

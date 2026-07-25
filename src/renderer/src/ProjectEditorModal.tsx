@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { CaretDown, Plus, Trash, X } from '@phosphor-icons/react'
+﻿import { useState } from 'react'
+import { CaretDown, FolderOpen, Plus, Trash, X } from '@phosphor-icons/react'
 import type { CSSProperties } from 'react'
 import {
   shellOptionsFor,
@@ -14,7 +14,7 @@ import { ICON_NAMES, Icon, type IconName } from './icons'
 
 export interface ProjectEditorModalProps {
   project: Project
-  /** true se è una bozza non ancora salvata */
+  /** true se Ã¨ una bozza non ancora salvata */
   isNew?: boolean
   onSave: (p: Project) => void
   onDelete: (id: string) => void
@@ -23,8 +23,8 @@ export interface ProjectEditorModalProps {
 
 export default function ProjectEditorModal(props: ProjectEditorModalProps): React.ReactElement {
   const [draft, setDraft] = useState<Project>(props.project)
-  // Opzioni shell in base al sistema (Windows: PowerShell/cmd/…; macOS/Linux: zsh/bash/…).
-  const shellOptions = shellOptionsFor(window.dashiai?.platform ?? 'win32')
+  // Opzioni shell in base al sistema (Windows: PowerShell/cmd/â€¦; macOS/Linux: zsh/bash/â€¦).
+  const shellOptions = shellOptionsFor(window.dashai?.platform ?? 'win32')
   const set = <K extends keyof Project>(k: K, v: Project[K]): void =>
     setDraft((d) => ({ ...d, [k]: v }))
 
@@ -84,12 +84,13 @@ export default function ProjectEditorModal(props: ProjectEditorModalProps): Reac
                   type="button"
                   className="btn btn--ghost"
                   onClick={async () => {
-                    const dir = await window.dashiai.pickDirectory()
+                    const dir = await window.dashai.pickDirectory()
                     if (dir) set('cwd', dir)
                   }}
                   style={{ ...btnBase, whiteSpace: 'nowrap' }}
                 >
-                  Scegli…
+                  <FolderOpen size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />
+                  Scegli
                 </button>
               </div>
             </label>
@@ -176,12 +177,13 @@ export default function ProjectEditorModal(props: ProjectEditorModalProps): Reac
                         type="button"
                         className="btn btn--ghost"
                         onClick={async () => {
-                          const file = await window.dashiai.pickFile()
+                          const file = await window.dashai.pickFile()
                           if (file) setCommand(cmd.id, { shellPath: file })
                         }}
                         style={{ ...btnBase, whiteSpace: 'nowrap' }}
                       >
-                        Scegli…
+                        <FolderOpen size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />
+                        Scegli
                       </button>
                     </div>
                   )}
@@ -480,7 +482,8 @@ const dialogStyle: CSSProperties = {
   padding: 'var(--space-6)',
   display: 'flex',
   flexDirection: 'column',
-  gap: 'var(--space-5)'
+  gap: 'var(--space-5)',
+  zoom: 'var(--ui-scale)' as CSSProperties['zoom']
 }
 const sectionStyle: CSSProperties = {
   display: 'flex',

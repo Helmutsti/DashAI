@@ -11,7 +11,6 @@ dist-electron/
 
 # App impacchettata (electron-builder / forge)
 release/
-build/
 *.exe
 *.dmg
 *.deb
@@ -25,6 +24,10 @@ yarn-debug.log*
 yarn-error.log*
 .eslintcache
 *.tsbuildinfo
+
+# Certificati di firma (contengono la chiave privata: mai versionare)
+*.pfx
+*.p12
 
 # Variabili d'ambiente
 .env

@@ -1,7 +1,8 @@
-import { join } from 'node:path'
+﻿import { join } from 'node:path'
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import { disposeAllPty, registerPtyIpc } from './pty'
 import { registerProjectsIpc } from './projects-store'
+import { registerSettingsIpc } from './settings-store'
 
 let mainWindow: BrowserWindow | null = null
 /** Finestre delle card estratte, per id terminale. */
@@ -64,7 +65,7 @@ function openDetached(id: string, title: string, color: string): void {
     minWidth: 360,
     minHeight: 240,
     show: false,
-    title: `${title} — DashAI`,
+    title: `${title} â€” DashAI`,
     icon: join(__dirname, '../../resources/icon.png'),
     autoHideMenuBar: true,
     backgroundColor: '#191919',
@@ -83,7 +84,7 @@ function openDetached(id: string, title: string, color: string): void {
     detachedWindows.delete(id)
     // Riaggancio: avvisa la finestra principale di riprendere l'output.
     if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('dashiai:redock', { id })
+      mainWindow.webContents.send('dashai:redock', { id })
     }
   })
   detachedWindows.set(id, win)
@@ -129,8 +130,8 @@ function createWindow(): void {
   win.on('ready-to-show', () => win.show())
   // In fullscreen nativo macOS i semafori spariscono: il renderer usa questo
   // evento per azzerare lo spazio riservato in alto (vedi macTrafficLightInset).
-  win.on('enter-full-screen', () => win.webContents.send('dashiai:fullscreen', true))
-  win.on('leave-full-screen', () => win.webContents.send('dashiai:fullscreen', false))
+  win.on('enter-full-screen', () => win.webContents.send('dashai:fullscreen', true))
+  win.on('leave-full-screen', () => win.webContents.send('dashai:fullscreen', false))
   win.on('closed', () => {
     mainWindow = null
     // Chiudi eventuali finestre estratte rimaste aperte.
@@ -149,6 +150,7 @@ app.whenReady().then(() => {
   registerPtyIpc()
   registerDialogIpc()
   registerProjectsIpc()
+  registerSettingsIpc()
   registerWindowIpc()
   registerShellIpc()
   createWindow()
