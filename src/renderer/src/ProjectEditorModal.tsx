@@ -76,7 +76,7 @@ export default function ProjectEditorModal(props: ProjectEditorModalProps): Reac
                 <input
                   type="text"
                   value={draft.cwd}
-                  placeholder="(home utente)"
+                  placeholder="percorso della cartella"
                   onChange={(e) => set('cwd', e.target.value)}
                   style={{ ...controlStyle, flex: '1 1 auto' }}
                 />
