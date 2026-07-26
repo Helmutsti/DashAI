@@ -230,6 +230,12 @@ fn create_session(app: AppHandle, window_label: String, state: State<PtyState>, 
     let mut builder = CommandBuilder::new(&file);
     builder.args(&args);
     builder.cwd(&cwd);
+    // Le app GUI (lanciate da Finder/Launchd) non ereditano TERM da una shell
+    // di login: senza, la shell non sa mappare i tasti speciali (Canc, frecce,
+    // ecc.) e ne stampa la sequenza di escape come testo letterale invece di
+    // interpretarla. Dichiariamo il "dialetto" che xterm.js emula davvero.
+    builder.env("TERM", "xterm-256color");
+    builder.env("COLORTERM", "truecolor");
 
     let mut child = match pair.slave.spawn_command(builder) {
         Ok(c) => c,
