@@ -2,7 +2,9 @@
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import type { ShellKey } from './projects'
-import { useSettings } from './SettingsContext'
+
+/** Dimensione font terminali, fissa (non piu configurabile). */
+const TERMINAL_FONT_SIZE = 12.5
 
 /** Tema del terminale (stato originale, prima dell'esperimento "trasparenza"). */
 const THEME = {
@@ -47,12 +49,6 @@ export default function TerminalView(props: TerminalViewProps): React.ReactEleme
   const termRef = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
 
-  // Font terminale dalle impostazioni: snapshot per la creazione (senza rieseguire
-  // l'effetto di mount) + aggiornamento dal vivo tramite l'effetto piu sotto.
-  const { settings } = useSettings()
-  const fontSizeRef = useRef(settings.terminalFontSize)
-  fontSizeRef.current = settings.terminalFontSize
-
   // Snapshot delle opzioni di spawn: la shell si crea una sola volta al mount,
   // quindi congeliamo i valori correnti senza rieseguire l'effetto.
   const spawnRef = useRef({
@@ -73,7 +69,7 @@ export default function TerminalView(props: TerminalViewProps): React.ReactEleme
 
     const term = new Terminal({
       fontFamily: 'ui-monospace, Menlo, Consolas, monospace',
-      fontSize: fontSizeRef.current,
+      fontSize: TERMINAL_FONT_SIZE,
       lineHeight: 1.2,
       cursorBlink: true,
       theme: THEME,
@@ -152,19 +148,6 @@ export default function TerminalView(props: TerminalViewProps): React.ReactEleme
     }
   }, [termId])
 
-  // Aggiorna il font dei terminali gia aperti quando cambia l'impostazione.
-  useEffect(() => {
-    const term = termRef.current
-    if (!term) return
-    term.options.fontSize = settings.terminalFontSize
-    try {
-      fitRef.current?.fit()
-    } catch {
-      /* host non ancora dimensionato */
-    }
-    window.dashai.terminal.resize(termId, term.cols, term.rows)
-  }, [settings.terminalFontSize, termId])
-
   return (
     // Box del terminale: stroke arrotondato + padding interno cosÃ¬ il testo
     // non tocca il bordo. Lo sfondo scuro pieno stacca dal colore della card.
@@ -177,7 +160,7 @@ export default function TerminalView(props: TerminalViewProps): React.ReactEleme
         flexDirection: 'column',
         background: '#191919',
         border: '1px solid var(--color-divider)',
-        borderRadius: 'var(--radius-md)',
+        borderRadius: 'var(--radius-lg)',
         padding: 'var(--space-3)',
         overflow: 'hidden'
       }}

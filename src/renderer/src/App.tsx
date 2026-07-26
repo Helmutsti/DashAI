@@ -651,8 +651,7 @@ export default function App(): React.ReactElement {
             display: 'flex',
             flexDirection: 'column',
             padding: 'var(--space-6) var(--space-4)',
-            minHeight: 0,
-            zoom: 'var(--ui-scale)'
+            minHeight: 0
           } as React.CSSProperties}
         >
           {/* Brand + azioni */}
@@ -711,7 +710,7 @@ export default function App(): React.ReactElement {
                     display: 'flex',
                     alignItems: 'center',
                     gap: 'var(--space-2)',
-                    padding: 'var(--space-3)',
+                    padding: 'var(--space-2)',
                     borderRadius: 'var(--radius-md)',
                     cursor: 'pointer',
                     minWidth: 0
@@ -731,7 +730,7 @@ export default function App(): React.ReactElement {
                       whiteSpace: 'nowrap',
                       fontFamily: 'var(--font-heading)',
                       fontWeight: 500,
-                      fontSize: 15,
+                      fontSize: 13,
                       color: 'var(--color-text)'
                     }}
                   >
@@ -749,8 +748,8 @@ export default function App(): React.ReactElement {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      width: 26,
-                      height: 26,
+                      width: 22,
+                      height: 22,
                       borderRadius: 'var(--radius-sm)',
                       color: 'var(--color-neutral-500)',
                       cursor: 'pointer'
@@ -770,8 +769,8 @@ export default function App(): React.ReactElement {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      width: 26,
-                      height: 26,
+                      width: 22,
+                      height: 22,
                       borderRadius: 'var(--radius-sm)',
                       color: 'var(--color-neutral-500)',
                       cursor: 'pointer'
@@ -794,7 +793,7 @@ export default function App(): React.ReactElement {
                         display: 'flex',
                         alignItems: 'center',
                         gap: 'var(--space-3)',
-                        padding: 'var(--space-2) var(--space-3)',
+                        padding: 'var(--space-1) var(--space-2)',
                         marginLeft: 'var(--space-5)',
                         borderRadius: 'var(--radius-sm)',
                         cursor: 'pointer',
@@ -829,7 +828,7 @@ export default function App(): React.ReactElement {
                           display: 'flex',
                           alignItems: 'center',
                           gap: 'var(--space-3)',
-                          padding: 'var(--space-2) var(--space-3)',
+                          padding: 'var(--space-1) var(--space-2)',
                           marginLeft: 'var(--space-5)',
                           borderRadius: 'var(--radius-sm)',
                           cursor: 'pointer',
@@ -862,8 +861,8 @@ export default function App(): React.ReactElement {
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            width: 22,
-                            height: 22,
+                            width: 18,
+                            height: 18,
                             borderRadius: 'var(--radius-sm)',
                             color: 'var(--color-neutral-500)',
                             cursor: 'pointer'
@@ -885,7 +884,7 @@ export default function App(): React.ReactElement {
                           display: 'flex',
                           alignItems: 'center',
                           gap: 'var(--space-3)',
-                          padding: 'var(--space-2) var(--space-3)',
+                          padding: 'var(--space-1) var(--space-2)',
                           marginLeft: 'var(--space-5)',
                           borderRadius: 'var(--radius-sm)',
                           cursor: 'pointer',
@@ -924,7 +923,7 @@ export default function App(): React.ReactElement {
               display: 'flex',
               alignItems: 'center',
               gap: 'var(--space-3)',
-              padding: 'var(--space-3)',
+              padding: 'var(--space-2)',
               borderRadius: 'var(--radius-md)',
               fontSize: 14,
               color: 'var(--color-neutral-300)',

@@ -1,4 +1,4 @@
-/* Design tokens — tema neutro greyscale (Nocturne, densità 0.7×).
+/* Design tokens — tema neutro greyscale (Nocturne, densità 0.6×).
    Fonte: README del design handoff "Layout Grid App". */
 :root {
   --color-bg: #191919;
@@ -16,14 +16,14 @@
 
   --color-danger: #e0666e;
 
-  /* Spacing (2.8 / 5.6 / 8.4 / 11.2 / 14 / 16.8 / 22.4) */
-  --space-1: 2.8px;
-  --space-2: 5.6px;
-  --space-3: 8.4px;
-  --space-4: 11.2px;
-  --space-5: 14px;
-  --space-6: 16.8px;
-  --space-7: 22.4px;
+  /* Spacing (2.4 / 4.8 / 7.2 / 9.6 / 12 / 14.4 / 19.2) — densità 0.6× */
+  --space-1: 2.4px;
+  --space-2: 4.8px;
+  --space-3: 7.2px;
+  --space-4: 9.6px;
+  --space-5: 12px;
+  --space-6: 14.4px;
+  --space-7: 19.2px;
 
   --radius-sm: 4px;
   --radius-md: 8px;
@@ -36,9 +36,6 @@
   --font-body: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-heading: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-heading-weight: 500;
-
-  /* Fattore di scala dell'interfaccia (impostazioni: "Dimensione interfaccia"). */
-  --ui-scale: 1;
 }
 
 /* Tema chiaro: override dei token derivato dal set scuro. Attivato da

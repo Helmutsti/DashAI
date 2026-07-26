@@ -99,7 +99,7 @@ export default function PromptView(props: PromptViewProps): React.ReactElement {
           background: 'var(--color-surface)',
           color: 'var(--color-text)',
           border: '1px solid var(--color-divider)',
-          borderRadius: 'var(--radius-md)',
+          borderRadius: 'var(--radius-lg)',
           padding: 'var(--space-3)',
           fontFamily: 'var(--font-body)',
           fontSize: 12,

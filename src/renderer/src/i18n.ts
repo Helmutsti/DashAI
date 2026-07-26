@@ -17,7 +17,6 @@ const it: Dict = {
   'settings.done': 'Fatto',
 
   'settings.section.appearance': 'Aspetto',
-  'settings.section.terminal': 'Terminale',
   'settings.section.data': 'Progetti e dati',
 
   'settings.language': 'Lingua',
@@ -25,9 +24,6 @@ const it: Dict = {
   'settings.theme.dark': 'Scuro',
   'settings.theme.light': 'Chiaro',
   'settings.theme.system': 'Sistema',
-
-  'settings.uiScale': 'Dimensione interfaccia',
-  'settings.terminalFontSize': 'Dimensione font terminali',
 
   'settings.export': 'Esporta dati (db.json)',
   'settings.import': 'Importa dati (db.json)',
@@ -48,7 +44,6 @@ const en: Dict = {
   'settings.done': 'Done',
 
   'settings.section.appearance': 'Appearance',
-  'settings.section.terminal': 'Terminal',
   'settings.section.data': 'Projects & data',
 
   'settings.language': 'Language',
@@ -56,9 +51,6 @@ const en: Dict = {
   'settings.theme.dark': 'Dark',
   'settings.theme.light': 'Light',
   'settings.theme.system': 'System',
-
-  'settings.uiScale': 'Interface size',
-  'settings.terminalFontSize': 'Terminal font size',
 
   'settings.export': 'Export data (db.json)',
   'settings.import': 'Import data (db.json)',

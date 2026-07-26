@@ -7,10 +7,6 @@ export interface AppSettings {
   version: number
   language: Language
   theme: ThemeChoice
-  /** Fattore di scala dell'interfaccia (1 = 100%). */
-  uiScale: number
-  /** Dimensione font dei terminali, in px. */
-  terminalFontSize: number
 }
 
 export const SETTINGS_VERSION = 1
@@ -18,9 +14,7 @@ export const SETTINGS_VERSION = 1
 export const DEFAULT_SETTINGS: AppSettings = {
   version: SETTINGS_VERSION,
   language: 'it',
-  theme: 'dark',
-  uiScale: 1,
-  terminalFontSize: 12.5
+  theme: 'dark'
 }
 
 interface SettingsContextValue {
@@ -45,10 +39,9 @@ function resolveTheme(theme: ThemeChoice): 'dark' | 'light' {
   return theme
 }
 
-/** Applica scala UI e tema al documento (variabili/attributi su :root). */
+/** Applica il tema al documento (attributo su :root). */
 function applyToDocument(settings: AppSettings): void {
   const root = document.documentElement
-  root.style.setProperty('--ui-scale', String(settings.uiScale))
   root.dataset.theme = resolveTheme(settings.theme)
 }
 
@@ -57,10 +50,7 @@ function normalize(raw: unknown): AppSettings {
   return {
     version: SETTINGS_VERSION,
     language: r.language === 'en' ? 'en' : 'it',
-    theme: r.theme === 'light' || r.theme === 'system' ? r.theme : 'dark',
-    uiScale: typeof r.uiScale === 'number' && r.uiScale > 0 ? r.uiScale : 1,
-    terminalFontSize:
-      typeof r.terminalFontSize === 'number' && r.terminalFontSize > 0 ? r.terminalFontSize : 12.5
+    theme: r.theme === 'light' || r.theme === 'system' ? r.theme : 'dark'
   }
 }
 

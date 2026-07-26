@@ -482,8 +482,7 @@ const dialogStyle: CSSProperties = {
   padding: 'var(--space-6)',
   display: 'flex',
   flexDirection: 'column',
-  gap: 'var(--space-5)',
-  zoom: 'var(--ui-scale)' as CSSProperties['zoom']
+  gap: 'var(--space-5)'
 }
 const sectionStyle: CSSProperties = {
   display: 'flex',

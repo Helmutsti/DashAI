@@ -76,11 +76,15 @@ export default function Card(props: CardProps): React.ReactElement {
   const cardBg = color
     ? `color-mix(in srgb, ${color} 15%, var(--color-surface))`
     : 'var(--color-surface)'
-  let cardRing = color
-    ? `0 0 0 1px color-mix(in srgb, ${color} 30%, transparent)`
-    : 'var(--shadow-sm)'
-  if (dropSide === 'before') cardRing += ', inset 4px 0 0 var(--color-accent)'
-  if (dropSide === 'after') cardRing += ', inset -4px 0 0 var(--color-accent)'
+  // Bordo vero (non box-shadow): un box-shadow con colore semi-trasparente
+  // arrotonda gli angoli in modo diverso da un border reale sotto WebKit,
+  // deformando visibilmente il radius rispetto al resto della card.
+  const cardBorderColor = color
+    ? `color-mix(in srgb, ${color} 30%, transparent)`
+    : 'var(--color-neutral-800)'
+  let dropIndicator: string | undefined
+  if (dropSide === 'before') dropIndicator = 'inset 4px 0 0 var(--color-accent)'
+  if (dropSide === 'after') dropIndicator = 'inset -4px 0 0 var(--color-accent)'
 
   const isPrompt = col.kind === 'prompt'
   const title = col.title || (isPrompt ? 'Nuovo prompt' : `Scheda ${r + 1}.${c + 1}`)
@@ -98,16 +102,15 @@ export default function Card(props: CardProps): React.ReactElement {
         zIndex: isMenuOpen ? 5 : 1,
         opacity: isDragged ? 0.4 : 1,
         background: cardBg,
-        boxShadow: cardRing,
-        // La sidebar ha zoom:var(--ui-scale) che scala anche il suo raggio; le
-        // card non sono zoomate, quindi scaliamo il raggio a mano per allinearle.
-        borderRadius: 'calc(var(--radius-lg) * var(--ui-scale))',
+        border: `1px solid ${cardBorderColor}`,
+        boxShadow: dropIndicator,
+        borderRadius: 'var(--radius-lg)',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'stretch',
         justifyContent: 'flex-start',
         gap: 'var(--space-3)',
-        padding: 'var(--space-4)',
+        padding: 'var(--space-3)',
         minWidth: 0,
         minHeight: 0,
         overflow: isMenuOpen ? 'visible' : 'hidden'

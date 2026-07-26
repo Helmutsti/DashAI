@@ -22,9 +22,11 @@ export default function DetachedTerminal({
   const cardBg = color
     ? `color-mix(in srgb, ${color} 15%, var(--color-surface))`
     : 'var(--color-surface)'
-  const boxRing = color
-    ? `0 0 0 1px color-mix(in srgb, ${color} 30%, transparent)`
-    : '0 0 0 1px var(--color-divider)'
+  // Bordo vero (non box-shadow): un box-shadow con colore semi-trasparente
+  // arrotonda gli angoli in modo diverso da un border reale sotto WebKit.
+  const boxBorderColor = color
+    ? `color-mix(in srgb, ${color} 30%, transparent)`
+    : 'var(--color-divider)'
   return (
     <div
       style={{
@@ -90,8 +92,8 @@ export default function DetachedTerminal({
           display: 'flex',
           flexDirection: 'column',
           background: '#191919',
-          boxShadow: boxRing,
-          borderRadius: 'var(--radius-md)',
+          border: `1px solid ${boxBorderColor}`,
+          borderRadius: 'var(--radius-lg)',
           padding: 'var(--space-3)'
         }}
       >

@@ -115,39 +115,6 @@ export default function SettingsModal(props: SettingsModalProps): React.ReactEle
               />
             </div>
 
-            <div style={fieldStyle}>
-              <span style={labelStyle}>
-                {t('settings.uiScale')} — {Math.round(settings.uiScale * 100)}%
-              </span>
-              <input
-                type="range"
-                min={0.8}
-                max={1.4}
-                step={0.05}
-                value={settings.uiScale}
-                onChange={(e) => update({ uiScale: Number(e.target.value) })}
-                style={rangeStyle}
-              />
-            </div>
-          </section>
-
-          {/* Sezione: Terminale */}
-          <section style={sectionStyle}>
-            <div style={sectionTitleStyle}>{t('settings.section.terminal')}</div>
-            <div style={fieldStyle}>
-              <span style={labelStyle}>
-                {t('settings.terminalFontSize')} — {settings.terminalFontSize}px
-              </span>
-              <input
-                type="range"
-                min={10}
-                max={22}
-                step={0.5}
-                value={settings.terminalFontSize}
-                onChange={(e) => update({ terminalFontSize: Number(e.target.value) })}
-                style={rangeStyle}
-              />
-            </div>
           </section>
 
           {/* Sezione: Progetti e dati */}
@@ -264,8 +231,7 @@ const dialogStyle: CSSProperties = {
   padding: 'var(--space-6)',
   display: 'flex',
   flexDirection: 'column',
-  gap: 'var(--space-5)',
-  zoom: 'var(--ui-scale)' as CSSProperties['zoom']
+  gap: 'var(--space-5)'
 }
 const sectionStyle: CSSProperties = {
   display: 'flex',
@@ -294,7 +260,6 @@ const hintStyle: CSSProperties = {
   lineHeight: 1.5,
   color: 'var(--color-neutral-500)'
 }
-const rangeStyle: CSSProperties = { width: '100%', accentColor: 'var(--color-accent)', cursor: 'pointer' }
 const btnBase: CSSProperties = {
   fontFamily: 'var(--font-body)',
   fontSize: 13,
