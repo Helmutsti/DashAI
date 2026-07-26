@@ -84,8 +84,12 @@ export default function ProjectEditorModal(props: ProjectEditorModalProps): Reac
                   type="button"
                   className="btn btn--ghost"
                   onClick={async () => {
-                    const dir = await window.dashai.pickDirectory()
-                    if (dir) set('cwd', dir)
+                    try {
+                      const dir = await window.dashai.pickDirectory()
+                      if (dir) set('cwd', dir)
+                    } catch (err) {
+                      console.error('Impossibile aprire il selettore cartella', err)
+                    }
                   }}
                   style={{ ...btnBase, whiteSpace: 'nowrap' }}
                 >
@@ -177,8 +181,12 @@ export default function ProjectEditorModal(props: ProjectEditorModalProps): Reac
                         type="button"
                         className="btn btn--ghost"
                         onClick={async () => {
-                          const file = await window.dashai.pickFile()
-                          if (file) setCommand(cmd.id, { shellPath: file })
+                          try {
+                            const file = await window.dashai.pickFile()
+                            if (file) setCommand(cmd.id, { shellPath: file })
+                          } catch (err) {
+                            console.error('Impossibile aprire il selettore file', err)
+                          }
                         }}
                         style={{ ...btnBase, whiteSpace: 'nowrap' }}
                       >

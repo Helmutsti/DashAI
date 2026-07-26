@@ -3,8 +3,14 @@ use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_opener::OpenerExt;
 
 /// Apre il selettore cartella nativo. None se annullato.
+///
+/// Deve essere `async`: i comandi Tauri non-async girano sul thread main, ma
+/// `blocking_*` blocca il thread chiamante in attesa che il pannello nativo
+/// (che su macOS deve girare anch'esso sul thread main) risponda — se il
+/// chiamante è il thread main si crea un deadlock che si manifesta come UI
+/// bloccata non appena si seleziona una cartella nel pannello.
 #[tauri::command]
-pub fn dialog_pick_directory(app: AppHandle) -> Option<String> {
+pub async fn dialog_pick_directory(app: AppHandle) -> Option<String> {
     app.dialog()
         .file()
         .blocking_pick_folder()
@@ -14,7 +20,7 @@ pub fn dialog_pick_directory(app: AppHandle) -> Option<String> {
 
 /// Apre il selettore file nativo (es. eseguibile di una shell custom). None se annullato.
 #[tauri::command]
-pub fn dialog_pick_file(app: AppHandle) -> Option<String> {
+pub async fn dialog_pick_file(app: AppHandle) -> Option<String> {
     app.dialog()
         .file()
         .blocking_pick_file()

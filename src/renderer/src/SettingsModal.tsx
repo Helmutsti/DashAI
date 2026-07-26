@@ -21,30 +21,38 @@ export default function SettingsModal(props: SettingsModalProps): React.ReactEle
 
   // Esporta l'intero DB (db.json): progetti + prompt (dentro i progetti) + impostazioni.
   const doExport = async (): Promise<void> => {
-    const ok = await window.dashai.projects.export({
-      version: props.projectsVersion,
-      projects: props.projects,
-      settings
-    })
-    if (ok) setMsg(t('settings.export.ok'))
+    try {
+      const ok = await window.dashai.projects.export({
+        version: props.projectsVersion,
+        projects: props.projects,
+        settings
+      })
+      if (ok) setMsg(t('settings.export.ok'))
+    } catch (err) {
+      console.error('Esportazione fallita', err)
+    }
   }
 
   // Importa db.json: ripristina progetti e impostazioni (per "riesumare" il lavoro).
   const doImport = async (): Promise<void> => {
     if (!window.confirm(t('settings.import.confirm'))) return
-    const data = await window.dashai.projects.import()
-    if (data === null) return // annullato: nessun messaggio
-    const bundle = data as { projects?: unknown; settings?: unknown }
-    if (!Array.isArray(bundle.projects)) {
-      setMsg(t('settings.import.invalid'))
-      return
+    try {
+      const data = await window.dashai.projects.import()
+      if (data === null) return // annullato: nessun messaggio
+      const bundle = data as { projects?: unknown; settings?: unknown }
+      if (!Array.isArray(bundle.projects)) {
+        setMsg(t('settings.import.invalid'))
+        return
+      }
+      props.onReplaceProjects(normalizeProjects(bundle.projects))
+      // Le impostazioni sono opzionali nel file; se presenti, ripristinale.
+      if (bundle.settings && typeof bundle.settings === 'object') {
+        update(bundle.settings as Partial<AppSettings>)
+      }
+      setMsg(t('settings.import.ok'))
+    } catch (err) {
+      console.error('Importazione fallita', err)
     }
-    props.onReplaceProjects(normalizeProjects(bundle.projects))
-    // Le impostazioni sono opzionali nel file; se presenti, ripristinale.
-    if (bundle.settings && typeof bundle.settings === 'object') {
-      update(bundle.settings as Partial<AppSettings>)
-    }
-    setMsg(t('settings.import.ok'))
   }
 
   return (

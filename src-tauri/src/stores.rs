@@ -41,8 +41,10 @@ pub fn projects_path(app: AppHandle) -> String {
     projects_file(&app).to_string_lossy().into_owned()
 }
 
+// `async`: vedi il commento su dialog_pick_directory in os_integration.rs —
+// blocking_save_file/blocking_pick_file deadlockano se eseguiti sul thread main.
 #[tauri::command]
-pub fn projects_export(app: AppHandle, data: Value) -> bool {
+pub async fn projects_export(app: AppHandle, data: Value) -> bool {
     let chosen = app
         .dialog()
         .file()
@@ -57,7 +59,7 @@ pub fn projects_export(app: AppHandle, data: Value) -> bool {
 }
 
 #[tauri::command]
-pub fn projects_import(app: AppHandle) -> Option<Value> {
+pub async fn projects_import(app: AppHandle) -> Option<Value> {
     let chosen = app
         .dialog()
         .file()
