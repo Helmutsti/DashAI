@@ -13,6 +13,9 @@ import './styles/app.css'
 import App from './App'
 import DetachedTerminal from './DetachedTerminal'
 import { SettingsProvider } from './SettingsContext'
+import { createDashaiBridge } from './dashai-bridge'
+
+window.dashai = createDashaiBridge()
 
 const container = document.getElementById('root')
 if (!container) throw new Error('#root non trovato')

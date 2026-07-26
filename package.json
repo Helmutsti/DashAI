@@ -2,39 +2,33 @@
   "name": "dashai-app",
   "version": "0.1.0",
   "private": true,
-  "description": "DashAI — workspace di schede-chat ridimensionabili (Electron + React). Layout stile 'Layout Grid App'; predisposta per terminali integrati stile VSCode.",
+  "description": "DashAI — workspace di schede-chat ridimensionabili (Tauri + React). Layout stile 'Layout Grid App'; predisposta per terminali integrati stile VSCode.",
   "author": {
     "name": "Helmutsti",
     "email": "manuc.1297@gmail.com"
   },
-  "main": "out/main/index.js",
   "type": "module",
   "scripts": {
-    "dev": "electron-vite dev",
-    "build": "electron-vite build",
-    "preview": "electron-vite preview",
+    "dev": "tauri dev",
+    "build": "tauri build",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "make:icon": "powershell -NoProfile -ExecutionPolicy Bypass -File build/make-icon.ps1",
-    "make:cert": "powershell -NoProfile -ExecutionPolicy Bypass -File build/make-cert.ps1",
-    "dist:win": "electron-vite build && electron-builder --win",
-    "dist:mac": "electron-vite build && electron-builder --mac",
-    "dist:linux": "electron-vite build && electron-builder --linux"
+    "dev:renderer": "vite",
+    "build:renderer": "vite build",
+    "tauri": "tauri"
   },
   "dependencies": {
     "@fontsource/inter": "^5.1.0",
     "@phosphor-icons/react": "^2.1.7",
+    "@tauri-apps/api": "^2.11.1",
     "@xterm/addon-fit": "^0.11.0",
-    "@xterm/xterm": "^6.0.0",
-    "node-pty": "^1.1.0"
+    "@xterm/xterm": "^6.0.0"
   },
   "devDependencies": {
-    "@electron/rebuild": "^4.2.0",
+    "@tauri-apps/cli": "^2.11.4",
+    "@types/node": "^26.1.1",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
-    "electron": "^33.2.0",
-    "electron-builder": "^25.1.8",
-    "electron-vite": "^2.3.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "typescript": "^5.7.2",

@@ -1,6 +1,6 @@
 ﻿/// <reference types="vite/client" />
 
-import type { DashaiApi } from '../../preload'
+import type { DashaiApi } from './dashai-bridge'
 
 declare global {
   interface Window {

@@ -3,14 +3,11 @@ node_modules/
 .pnp
 .pnp.js
 
-# Output di build (electron-vite / vite)
-out/
+# Output di build (vite / tauri)
 dist/
-dist-electron/
 .vite/
 
-# App impacchettata (electron-builder / forge)
-release/
+# App impacchettata (tauri bundler)
 *.exe
 *.dmg
 *.deb

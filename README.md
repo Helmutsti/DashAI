@@ -1,11 +1,11 @@
 ﻿# DashAI â€” app
 
-App desktop **Electron + React** (cartella autonoma e indipendente dal resto del
+App desktop **Tauri + React** (cartella autonoma e indipendente dal resto del
 repo `DashAI`). Board di **card ridimensionabili e trascinabili**, tema neutro
 greyscale scuro, layout dal design **"Layout Grid App"**.
 
 > **Ogni card Ã¨ un terminale vero, stile VSCode**: `xterm.js` nel renderer +
-> `node-pty` (shell reale) nel main, collegati via IPC. La shell Ã¨ selezionabile
+> `portable-pty` (shell reale) nel backend Rust, collegati via comandi/eventi Tauri. La shell Ã¨ selezionabile
 > per progetto ed Ã¨ **adattata al sistema**: Windows PowerShell/pwsh/cmd/Git Bash
 > su Windows, zsh/bash/fish su macOS e Linux (default = shell predefinita di sistema).
 
@@ -17,9 +17,8 @@ greyscale scuro, layout dal design **"Layout Grid App"**.
 
 ```bash
 npm install       # dipendenze (dentro questa cartella)
-npm run dev       # sviluppo con hot-reload (electron-vite dev)
-npm run build     # bundle di produzione in out/
-npm run preview   # avvia il bundle di produzione
+npm run dev       # sviluppo con hot-reload (tauri dev)
+npm run build     # bundle di produzione in src-tauri/target/release/bundle/
 npm run typecheck # controllo tipi TypeScript
 ```
 
@@ -27,50 +26,50 @@ npm run typecheck # controllo tipi TypeScript
 
 `npm run dev` avvia un **dev server di Vite** (di norma su `http://localhost:5173`,
 oppure la porta libera successiva). **Non Ã¨ un server dell'app**: serve solo la UI
-React del processo *renderer* con hot-reload, e la finestra Electron la carica
+React del processo *renderer* con hot-reload, e la finestra Tauri la carica
 internamente da quell'indirizzo locale. In produzione (`npm run build`) non c'Ã¨
-alcun server: Electron carica i file statici da `out/renderer/`.
+alcun server: la webview di sistema carica i file statici da `dist/`.
 
-### Build degli eseguibili (electron-builder)
+### Build degli eseguibili (tauri bundler)
 
 ```bash
-npm run dist:win    # installer + eseguibile portabile Windows  â†’ dist/
-npm run dist:mac    # .dmg + .zip macOS (arm64 + x64)           â†’ dist/
-npm run dist:linux  # AppImage Linux                            â†’ dist/
+npm run build   # dmg (macOS) / nsis (Windows) / appimage (Linux) in base
+                # alla piattaforma di build â†’ src-tauri/target/release/bundle/
 ```
 
-> Il target **macOS si compila solo su un Mac** (limite Apple); Windows solo su
-> Windows. Per produrre entrambi da un unico punto c'Ã¨ il workflow GitHub Actions
-> in `.github/workflows/build.yml` (build su runner nativi ad ogni tag `v*`).
+> Ogni target si compila solo sulla piattaforma nativa corrispondente (limite
+> dei bundler di sistema, non di Tauri).
 
 ## Struttura
 
 ```
+src-tauri/
+  src/
+    pty.rs             gestore shell portable-pty + comandi Tauri
+    stores.rs          persistenza progetti/impostazioni (JSON su disco)
+    windows.rs          finestre estratte (detach/redock) + fullscreen
+    os_integration.rs  dialog nativi + apertura file manager
+  tauri.conf.json
 src/
-  main/
-    index.ts          processo principale Electron (finestra + lifecycle)
-    pty.ts            gestore shell node-pty + handler IPC
-  preload/index.ts    bridge sicuro renderer<->main (window.dashai.terminal)
   renderer/
     index.html
     src/
-      main.tsx        entry React + import font/CSS/xterm
-      App.tsx         stato + canvas righe/schede + resize + drag&drop
-      Card.tsx        card (header/menu/rename/drag) + terminale
+      main.tsx          entry React + import font/CSS/xterm
+      dashai-bridge.ts  bridge renderer<->backend (window.dashai.terminal)
+      App.tsx           stato + canvas righe/schede + resize + drag&drop
+      Card.tsx          card (header/menu/rename/drag) + terminale
       TerminalView.tsx  xterm.js + FitAddon collegato alla pty
-      types.ts        tipi Row/Column (id stabile) + palette
-      styles/         tokens.css (design token) + app.css (reset/hover)
+      types.ts          tipi Row/Column (id stabile) + palette
+      styles/           tokens.css (design token) + app.css (reset/hover)
 ```
 
 ## Terminali (architettura)
 
 - `TerminalView` crea un `xterm.Terminal` + `FitAddon` e lo lega alla pty
   tramite `window.dashai.terminal` (create/input/resize/dispose + onData/onExit).
-- Il main (`pty.ts`) tiene una `node-pty` per ogni `Column.id` e inoltra l'I/O.
-- `node-pty` 1.1.0 usa binari **N-API precompilati** (`prebuilds/` per win32-x64/arm64
-  e darwin-x64/arm64): nessuna compilazione richiesta, funziona cosÃ¬ anche su Mac.
-  Ãˆ **externalizzato** dal bundle del main
-  (`externalizeDepsPlugin`) perchÃ© il suo loader cerca il `.node` a runtime.
+- Il backend Rust (`pty.rs`) tiene una sessione `portable-pty` per ogni
+  `Column.id`, inoltra l'I/O via eventi Tauri e la ridirige verso la finestra
+  correntemente "attached" (usato da detach/redock delle card).
 - Ogni card ha un `id` stabile: la shell **sopravvive al riordino nella stessa
   riga**. Spostare una card in un'altra riga la rimonta e la shell riparte
   (limite di reconciliation di React; migliorabile con un layer a portali).
