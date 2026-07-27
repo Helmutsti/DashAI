@@ -67,3 +67,17 @@ jobs:
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
+
+      # Tauri per Windows produce solo l'installer NSIS. Qui aggiungiamo anche
+      # l'eseguibile "portable" (l'exe grezzo da ~11 MB) tra gli asset della
+      # release. Nota: la portable richiede il runtime WebView2 gia' presente
+      # sul sistema (di serie su Windows 11); l'installer NSIS invece lo gestisce.
+      - name: Upload Windows portable exe
+        if: matrix.platform == 'windows-latest'
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          cp "src-tauri/target/release/dashai.exe" "DashAI_${VERSION}_x64-portable.exe"
+          gh release upload "${GITHUB_REF_NAME}" "DashAI_${VERSION}_x64-portable.exe" --clobber
