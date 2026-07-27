@@ -26,8 +26,6 @@ export interface Column {
   content?: string
   /** card compressa (solo intestazione visibile) */
   collapsed?: boolean
-  /** card estratta in una finestra separata */
-  detached?: boolean
 }
 
 export interface Row {

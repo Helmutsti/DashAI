@@ -53,9 +53,6 @@ struct Session {
     master: Box<dyn MasterPty + Send>,
     writer: Box<dyn Write + Send>,
     killer: Box<dyn ChildKiller + Send + Sync>,
-    /// finestra a cui viene indirizzato l'output correntemente: mutabile per
-    /// permettere a term:attach di ridirigere la pty su un'altra finestra.
-    window: Arc<Mutex<String>>,
 }
 
 #[derive(Default, Clone)]
@@ -264,16 +261,15 @@ fn create_session(app: AppHandle, window_label: String, state: State<PtyState>, 
         }
     };
 
-    let window_arc = Arc::new(Mutex::new(window_label));
-    let session = Session { master: pair.master, writer, killer, window: window_arc.clone() };
+    let session = Session { master: pair.master, writer, killer };
     state.0.lock().unwrap().insert(opts.id.clone(), session);
 
-    // Thread di lettura: inoltra l'output della pty verso la finestra
-    // correntemente "attached" (window_arc, riassegnabile da term:attach).
+    // Thread di lettura: inoltra l'output della pty verso la finestra che ha
+    // creato la sessione.
     {
         let app = app.clone();
         let id = opts.id.clone();
-        let window_arc = window_arc.clone();
+        let label = window_label.clone();
         let mut reader = reader;
         thread::spawn(move || {
             let mut buf = [0u8; 8192];
@@ -282,7 +278,6 @@ fn create_session(app: AppHandle, window_label: String, state: State<PtyState>, 
                     Ok(0) => break,
                     Ok(n) => {
                         let data = String::from_utf8_lossy(&buf[..n]).into_owned();
-                        let label = window_arc.lock().unwrap().clone();
                         let _ = app.emit_to(&label, "term:data", TermDataPayload { id: id.clone(), data });
                     }
                     Err(_) => break,
@@ -292,16 +287,15 @@ fn create_session(app: AppHandle, window_label: String, state: State<PtyState>, 
     }
 
     // Thread di attesa: rileva l'uscita del processo, pulisce la sessione e
-    // notifica la finestra correntemente "attached".
+    // notifica la finestra.
     {
         let app = app.clone();
         let id = opts.id.clone();
         let sessions = state.0.clone();
-        let window_arc = window_arc.clone();
+        let label = window_label.clone();
         thread::spawn(move || {
             let exit_code = child.wait().map(|s| s.exit_code() as i32).unwrap_or(-1);
             sessions.lock().unwrap().remove(&id);
-            let label = window_arc.lock().unwrap().clone();
             let _ = app.emit_to(&label, "term:exit", TermExitPayload { id: id.clone(), exit_code });
         });
     }
@@ -352,16 +346,6 @@ pub fn term_resize(state: State<PtyState>, id: String, cols: u16, rows: u16) {
 #[tauri::command]
 pub fn term_dispose(state: State<PtyState>, id: String) {
     dispose_session(&state, &id);
-}
-
-#[tauri::command]
-pub fn term_attach(window: Window, state: State<PtyState>, id: String) -> bool {
-    if let Some(s) = state.0.lock().unwrap().get(&id) {
-        *s.window.lock().unwrap() = window.label().to_string();
-        true
-    } else {
-        false
-    }
 }
 
 /// Termina tutte le shell attive (chiamata alla chiusura dell'app).

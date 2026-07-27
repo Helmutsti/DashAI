@@ -77,9 +77,6 @@ export default function App(): React.ReactElement {
 
   const outerRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<ResizeDrag>(null)
-  // Card estratte: tolte dalla griglia (nessuno spazio) ma la loro pty resta
-  // viva nella finestra separata. Qui conserviamo la colonna per il riaggancio.
-  const detachedRef = useRef<Map<string, Column>>(new Map())
 
   // --- Persistenza progetti (projects.json) -------------------------------
   useEffect(() => {
@@ -231,7 +228,7 @@ export default function App(): React.ReactElement {
     )
   }
 
-  // --- Comprimi / Estrai / Riaggancia -------------------------------------
+  // --- Comprimi -----------------------------------------------------------
   const toggleCollapse = (id: string): void =>
     setRows((s) =>
       s.map((row) => ({
@@ -239,36 +236,6 @@ export default function App(): React.ReactElement {
         cols: row.cols.map((c) => (c.id === id ? { ...c, collapsed: !c.collapsed } : c))
       }))
     )
-
-  // Estrai: togli la card dalla griglia (occupa zero spazio), conservala per il
-  // riaggancio e apri la finestra separata. La pty resta viva.
-  const detachCard = (col: Column): void => {
-    detachedRef.current.set(col.id, { ...col, detached: false })
-    setRows((s) =>
-      s
-        .map((row) => ({ ...row, cols: row.cols.filter((c) => c.id !== col.id) }))
-        .filter((row) => row.cols.length > 0)
-    )
-    window.dashai.terminal.detachOpen(col.id, col.title || 'Terminale', col.color)
-  }
-
-  // Riaggancio (finestra estratta chiusa via X o "Riaggancia"): reinserisci la
-  // card conservando il colore e riprendi l'output.
-  useEffect(() => {
-    const off = window.dashai.terminal.onRedock((id) => {
-      const col = detachedRef.current.get(id)
-      if (col) {
-        detachedRef.current.delete(id)
-        setRows((s) =>
-          s.length === 0
-            ? [{ h: 1, cols: [col] }]
-            : s.map((row, i) => (i === 0 ? { ...row, cols: [...row.cols, col] } : row))
-        )
-      }
-      window.dashai.terminal.attach(id)
-    })
-    return off
-  }, [])
 
   // --- Resize (righe/colonne) via listener globali ------------------------
   const handleMove = useCallback((e: PointerEvent) => {
@@ -548,7 +515,6 @@ export default function App(): React.ReactElement {
                   onDrop={(e) => dropOnCard(r, c, e)}
                   onProcessExit={() => removeColById(id)}
                   onToggleCollapse={() => toggleCollapse(id)}
-                  onDetach={() => detachCard(col)}
                   onSavePrompt={(content) => savePrompt(col, content)}
                 />
                 {c < row.cols.length - 1 && (

@@ -55,13 +55,7 @@ const terminal = {
   onExit: (id: string, cb: (exitCode: number) => void): (() => void) =>
     subscribe<{ id: string; exitCode: number }>('term:exit', (m) => {
       if (m.id === id) cb(m.exitCode)
-    }),
-  attach: (id: string): Promise<boolean> => invoke('term_attach', { id }),
-  detachOpen: (id: string, title: string, color: string): Promise<boolean> =>
-    invoke('terminal_detach_open', { id, title, color }),
-  detachClose: (id: string): Promise<boolean> => invoke('terminal_detach_close', { id }),
-  onRedock: (cb: (id: string) => void): (() => void) =>
-    subscribe<{ id: string }>('dashai:redock', (m) => cb(m.id))
+    })
 }
 
 const projects = {

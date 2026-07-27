@@ -1,7 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
-  ArrowSquareOut,
   CaretDown,
   CaretRight,
   CaretUp,
@@ -39,7 +38,6 @@ export interface CardProps {
   /** invocato quando la shell termina (per l'auto-chiusura "chiudi al termine") */
   onProcessExit: () => void
   onToggleCollapse: () => void
-  onDetach: () => void
   /** (card prompt) salva il testo corrente nel progetto. */
   onSavePrompt: (content: string) => void
 }
@@ -240,24 +238,16 @@ export default function Card(props: CardProps): React.ReactElement {
                 borderRadius: 'var(--radius-md)'
               }}
             >
-              <div className="menu-item" onClick={props.onRename} style={menuItemStyle}>
-                <PencilSimple size={16} />
-                Rinomina
-              </div>
-              <div
-                className="menu-item menu-item--danger"
-                onClick={props.onClose}
-                style={{ ...menuItemStyle, color: 'var(--color-danger)' }}
-              >
-                <Trash size={16} />
-                Chiudi
-              </div>
               {!isPrompt && (
                 <div className="menu-item" onClick={props.onNewCard} style={menuItemStyle}>
                   <Plus size={16} />
                   Nuova scheda
                 </div>
               )}
+              <div className="menu-item" onClick={props.onRename} style={menuItemStyle}>
+                <PencilSimple size={16} />
+                Rinomina
+              </div>
               <div
                 className="menu-item"
                 onClick={(e) => {
@@ -269,19 +259,14 @@ export default function Card(props: CardProps): React.ReactElement {
                 {col.collapsed ? <CaretDown size={16} /> : <CaretUp size={16} />}
                 {col.collapsed ? 'Espandi' : 'Comprimi'}
               </div>
-              {!isPrompt && (
-                <div
-                  className="menu-item"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    props.onDetach()
-                  }}
-                  style={menuItemStyle}
-                >
-                  <ArrowSquareOut size={16} />
-                  Estrai in finestra
-                </div>
-              )}
+              <div
+                className="menu-item menu-item--danger"
+                onClick={props.onClose}
+                style={{ ...menuItemStyle, color: 'var(--color-danger)' }}
+              >
+                <Trash size={16} />
+                Elimina
+              </div>
             </div>,
             document.body
           )}

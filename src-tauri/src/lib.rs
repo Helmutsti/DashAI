@@ -15,7 +15,6 @@ pub fn run() {
       pty::term_input,
       pty::term_resize,
       pty::term_dispose,
-      pty::term_attach,
       stores::projects_load,
       stores::projects_save,
       stores::projects_path,
@@ -27,8 +26,6 @@ pub fn run() {
       os_integration::dialog_pick_directory,
       os_integration::dialog_pick_file,
       os_integration::shell_open_path,
-      windows::terminal_detach_open,
-      windows::terminal_detach_close,
       windows::window_is_fullscreen,
     ])
     .setup(|app| {

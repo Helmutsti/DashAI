@@ -32,9 +32,6 @@ export interface TerminalViewProps {
    *  viene chiusa (via onProcessExit). */
   closeOnExit?: boolean
   onProcessExit?: () => void
-  /** modalitÃ  aggancio: NON crea nÃ© distrugge la pty, si limita a ridirigere
-   *  l'output verso questa vista (usata dalla finestra estratta). */
-  attach?: boolean
 }
 
 /**
@@ -56,8 +53,7 @@ export default function TerminalView(props: TerminalViewProps): React.ReactEleme
     shellPath: props.shellPath,
     cwd: props.cwd,
     startupCommand: props.startupCommand,
-    closeOnExit: props.closeOnExit,
-    attach: props.attach
+    closeOnExit: props.closeOnExit
   })
   // Callback sempre aggiornata (senza rieseguire l'effetto di mount).
   const onProcessExitRef = useRef(props.onProcessExit)
@@ -103,28 +99,23 @@ export default function TerminalView(props: TerminalViewProps): React.ReactEleme
       }
     })
 
-    if (s.attach) {
-      // Finestra estratta: si aggancia alla pty esistente (nessuna create).
-      void api.attach(termId).then(() => api.resize(termId, term.cols, term.rows))
-    } else {
-      // Crea la shell con le dimensioni iniziali calcolate dal fit.
-      void api.create({
-        id: termId,
-        cols: term.cols,
-        rows: term.rows,
-        shell: s.shell,
-        shellPath: s.shellPath,
-        cwd: s.cwd,
-        startupCommand: s.startupCommand,
-        closeOnExit: s.closeOnExit
-      })
-    }
+    // Crea la shell con le dimensioni iniziali calcolate dal fit.
+    void api.create({
+      id: termId,
+      cols: term.cols,
+      rows: term.rows,
+      shell: s.shell,
+      shellPath: s.shellPath,
+      cwd: s.cwd,
+      startupCommand: s.startupCommand,
+      closeOnExit: s.closeOnExit
+    })
 
     const offInput = term.onData((data) => api.input(termId, data))
 
-    // Ridimensiona la pty quando il contenitore (card/row/window) cambia size.
-    // Se l'host Ã¨ nascosto (0px, es. card compressa/estratta) non fare nulla:
-    // eviterebbe di rimpicciolire la pty a 0 disturbando la finestra estratta.
+    // Ridimensiona la pty quando il contenitore (card/riga) cambia size.
+    // Se l'host è nascosto (0px, es. card compressa) non fare nulla:
+    // eviterebbe di rimpicciolire la pty a 0 senza motivo.
     const ro = new ResizeObserver(() => {
       if (host.clientWidth === 0 || host.clientHeight === 0) return
       safeFit()
@@ -143,8 +134,8 @@ export default function TerminalView(props: TerminalViewProps): React.ReactEleme
       termRef.current = null
       fitRef.current = null
       // NB: la pty NON viene distrutta allo smontaggio della vista. Il suo ciclo
-      // di vita Ã¨ gestito esplicitamente da App (chiusura card) / finestra
-      // estratta, cosÃ¬ estrarre o spostare una card non uccide la shell.
+      // di vita è gestito esplicitamente da App (chiusura card), così spostare
+      // una card non uccide la shell.
     }
   }, [termId])
 
