@@ -1,9 +1,13 @@
-﻿name: Build desktop apps
+name: Release
 
-# Compila gli eseguibili per Windows e macOS su runner nativi.
+# Compila DashAI (Tauri v2) su runner nativi Windows e macOS, poi crea una
+# GitHub Release con gli installer allegati negli asset.
+#
 # - macOS si compila SOLO su un runner macOS (limite Apple): per questo serve la CI.
-# - Ad ogni tag "v*" pubblica una Release con gli installer allegati.
-# - Si puÃ² anche lanciare a mano (workflow_dispatch) per scaricare gli artifact.
+# - Ad ogni tag "v*" viene creata una Release in bozza (draft) con gli installer:
+#   Windows -> DashAI_<versione>_x64-setup.exe (NSIS)
+#   macOS   -> DashAI_<versione>_aarch64.dmg (Apple Silicon) e _x64.dmg (Intel)
+# - Si puo' anche lanciare a mano (workflow_dispatch) senza pubblicare la release.
 
 on:
   push:
@@ -12,58 +16,54 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  release:
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: windows-latest
-            script: dist:win
-          - os: macos-latest
-            script: dist:mac
-    runs-on: ${{ matrix.os }}
+          - platform: 'macos-latest'      # Mac con Apple Silicon (M1+)
+            args: '--target aarch64-apple-darwin'
+          - platform: 'macos-latest'      # Mac Intel
+            args: '--target x86_64-apple-darwin'
+          - platform: 'windows-latest'    # Windows x64
+            args: ''
+
+    runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
 
-      - name: Install dependencies
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Install frontend dependencies
         run: npm ci
 
-      - name: Build ${{ matrix.os }}
-        run: npm run ${{ matrix.script }}
+      - name: Build and release
+        uses: tauri-apps/tauri-action@v0
         env:
-          # Nessuna firma/notarizzazione: senza Apple Developer ID il build mac
-          # produce comunque un .app/.dmg (non firmato). Rimuovi queste righe e
-          # aggiungi i secret CSC_* quando avrai un certificato.
-          CSC_IDENTITY_AUTO_DISCOVERY: false
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # macOS non firmato: senza un Apple Developer ID il .dmg funziona ma
+          # mostra l'avviso di Gatekeeper. Aggiungi i secret di firma qui quando
+          # avrai un certificato (APPLE_CERTIFICATE, APPLE_SIGNING_IDENTITY, ...).
         with:
-          name: dashai-${{ matrix.os }}
-          path: |
-            dist/*.exe
-            dist/*.dmg
-            dist/*.zip
-          if-no-files-found: ignore
-
-  release:
-    # Crea la Release solo quando si pusha un tag v*.
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-      - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: artifacts/**/*
-          fail_on_unmatched_files: false
+          tagName: ${{ github.ref_name }}
+          releaseName: 'DashAI __VERSION__'
+          releaseBody: 'Scarica l''installer per la tua piattaforma dagli asset qui sotto.'
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}
