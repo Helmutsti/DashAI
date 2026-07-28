@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Check, Copy, FloppyDisk } from '@phosphor-icons/react'
+import { writeClipboard } from './clipboard'
 import type { CSSProperties } from 'react'
 
 export interface PromptViewProps {
@@ -47,18 +48,14 @@ export default function PromptView(props: PromptViewProps): React.ReactElement {
   }
 
   const doCopy = async (): Promise<void> => {
-    try {
-      await navigator.clipboard.writeText(text)
-      flash('copied')
-    } catch {
-      /* clipboard non disponibile: ignora silenziosamente */
-    }
+    if (await writeClipboard(text)) flash('copied')
   }
 
   const doSave = (): void => {
     onSave(text)
     flash('saved')
   }
+
 
   return (
     <div

@@ -1,6 +1,6 @@
 {
   "name": "dashai-app",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "private": true,
   "description": "DashAI — workspace di schede-chat ridimensionabili (Tauri + React). Layout stile 'Layout Grid App'; predisposta per terminali integrati stile VSCode.",
   "author": {
@@ -21,6 +21,7 @@
     "@phosphor-icons/react": "^2.1.7",
     "@tauri-apps/api": "^2.11.1",
     "@xterm/addon-fit": "^0.11.0",
+    "@xterm/addon-web-links": "^0.12.0",
     "@xterm/xterm": "^6.0.0"
   },
   "devDependencies": {

@@ -1,6 +1,8 @@
 ﻿import { useEffect, useRef } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
+import { WebLinksAddon } from '@xterm/addon-web-links'
+import { readClipboard, writeClipboard } from './clipboard'
 import type { ShellKey } from './projects'
 
 /** Dimensione font terminali, fissa (non piu configurabile). */
@@ -17,6 +19,22 @@ const THEME = {
   brightBlack: '#5a5a5a',
   white: '#cfcfcf',
   brightWhite: '#ededed'
+}
+
+/**
+ * Apre un link del terminale nel browser di sistema.
+ *
+ * Il webview non deve navigarci dentro: è una finestra applicativa, non un
+ * browser. Il filtro sullo schema sta nel comando Rust; qui si tiene traccia
+ * dei fallimenti, altrimenti un clic che non apre nulla resterebbe muto.
+ */
+function openExternal(uri: string): void {
+  window.dashai
+    .openUrl(uri)
+    .then((ok) => {
+      if (!ok) console.error('[dashai] URL non aperto:', uri)
+    })
+    .catch((err) => console.error('[dashai] apertura URL fallita:', uri, err))
 }
 
 export interface TerminalViewProps {
@@ -70,12 +88,33 @@ export default function TerminalView(props: TerminalViewProps): React.ReactEleme
       cursorBlink: true,
       theme: THEME,
       allowProposedApi: true,
-      scrollback: 5000
+      scrollback: 5000,
+      // Link dichiarati dal programma con lo standard OSC 8 ("questo testo è un
+      // link a X"): non passano dal WebLinksAddon, che cerca URL nel testo, ma
+      // da qui. Senza, resterebbero inerti.
+      linkHandler: {
+        activate: (event, uri) => {
+          event.preventDefault()
+          openExternal(uri)
+        },
+        // Gli URL non-http vengono scartati a monte, come nel comando Rust.
+        allowNonHttpProtocols: false
+      }
     })
     termRef.current = term
     const fit = new FitAddon()
     fitRef.current = fit
     term.loadAddon(fit)
+
+    // Rilevamento degli URL scritti nell'output come semplice testo (quelli che
+    // stampa Claude Code, per dirne una): è l'applicazione ospite a doverli
+    // riconoscere, la shell emette solo caratteri.
+    term.loadAddon(
+      new WebLinksAddon((event, uri) => {
+        event.preventDefault()
+        openExternal(uri)
+      })
+    )
     term.open(host)
 
     const safeFit = (): void => {
@@ -139,10 +178,29 @@ export default function TerminalView(props: TerminalViewProps): React.ReactEleme
     }
   }, [termId])
 
+  // Tasto destro come in Windows Terminal: con del testo selezionato copia (e
+  // deseleziona), altrimenti incolla nella shell. Nessun menu: il menu nativo
+  // del webview è bloccato e qui l'azione utile è una sola.
+  const onContextMenu = (e: React.MouseEvent): void => {
+    e.preventDefault()
+    const term = termRef.current
+    if (!term) return
+    const selection = term.getSelection()
+    if (selection) {
+      void writeClipboard(selection).then(() => term.clearSelection())
+      return
+    }
+    void readClipboard().then((text) => {
+      if (text) window.dashai.terminal.input(termId, text)
+      term.focus()
+    })
+  }
+
   return (
     // Box del terminale: stroke arrotondato + padding interno cosÃ¬ il testo
     // non tocca il bordo. Lo sfondo scuro pieno stacca dal colore della card.
     <div
+      onContextMenu={onContextMenu}
       style={{
         flex: '1 1 auto',
         minHeight: 0,

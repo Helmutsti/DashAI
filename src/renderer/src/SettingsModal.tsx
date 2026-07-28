@@ -3,17 +3,19 @@ import type { CSSProperties } from 'react'
 import { DownloadSimple, UploadSimple, X } from '@phosphor-icons/react'
 import { useSettings, type AppSettings, type ThemeChoice } from './SettingsContext'
 import type { Language } from './i18n'
-import { normalizeProjects, type Project } from './projects'
+import { normalizeProjects, normalizePrompts, type Project, type Prompt } from './projects'
 import { useOverlayDismiss } from './useOverlayDismiss'
 
 export interface SettingsModalProps {
   onClose: () => void
   /** Progetti correnti, usati per l'esportazione. */
   projects: Project[]
+  /** Elenco globale dei prompt, usato per l'esportazione. */
+  prompts: Prompt[]
   /** Versione del file progetti. */
   projectsVersion: number
-  /** Import (sostituisci tutto): rimpiazza i progetti con quelli importati. */
-  onReplaceProjects: (projects: Project[]) => void
+  /** Import (sostituisci tutto): rimpiazza progetti e prompt con quelli importati. */
+  onReplaceData: (projects: Project[], prompts: Prompt[]) => void
 }
 
 export default function SettingsModal(props: SettingsModalProps): React.ReactElement {
@@ -21,12 +23,13 @@ export default function SettingsModal(props: SettingsModalProps): React.ReactEle
   const [msg, setMsg] = useState<string | null>(null)
   const overlayDismiss = useOverlayDismiss(props.onClose)
 
-  // Esporta l'intero DB (db.json): progetti + prompt (dentro i progetti) + impostazioni.
+  // Esporta l'intero DB (db.json): progetti + prompt (elenco globale) + impostazioni.
   const doExport = async (): Promise<void> => {
     try {
       const ok = await window.dashai.projects.export({
         version: props.projectsVersion,
         projects: props.projects,
+        prompts: props.prompts,
         settings
       })
       if (ok) setMsg(t('settings.export.ok'))
@@ -41,12 +44,14 @@ export default function SettingsModal(props: SettingsModalProps): React.ReactEle
     try {
       const data = await window.dashai.projects.import()
       if (data === null) return // annullato: nessun messaggio
-      const bundle = data as { projects?: unknown; settings?: unknown }
+      const bundle = data as { projects?: unknown; prompts?: unknown; settings?: unknown }
       if (!Array.isArray(bundle.projects)) {
         setMsg(t('settings.import.invalid'))
         return
       }
-      props.onReplaceProjects(normalizeProjects(bundle.projects))
+      // Un file esportato in versione 1 non ha `prompts`: si riparte a vuoto,
+      // i prompt annidati nei progetti non vengono recuperati.
+      props.onReplaceData(normalizeProjects(bundle.projects), normalizePrompts(bundle.prompts))
       // Le impostazioni sono opzionali nel file; se presenti, ripristinale.
       if (bundle.settings && typeof bundle.settings === 'object') {
         update(bundle.settings as Partial<AppSettings>)
@@ -154,6 +159,45 @@ export default function SettingsModal(props: SettingsModalProps): React.ReactEle
               <span style={{ ...hintStyle, color: 'var(--color-neutral-300)' }}>{msg}</span>
             )}
           </section>
+
+          {/* Sezione: Scorciatoie — promemoria, non sono configurabili. */}
+          <section style={sectionStyle}>
+            <div style={sectionTitleStyle}>{t('settings.section.shortcuts')}</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+              {SHORTCUTS.map((s) => (
+                <div
+                  key={s.label}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 'var(--space-3)',
+                    minWidth: 0
+                  }}
+                >
+                  <span style={{ ...hintStyle, flex: '1 1 auto', color: 'var(--color-neutral-300)' }}>
+                    {t(s.label)}
+                  </span>
+                  <span
+                    style={{
+                      flex: '0 0 auto',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 3
+                    }}
+                  >
+                    {s.keys.map((k, i) => (
+                      <span key={k} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                        {i > 0 && <span style={{ ...hintStyle, fontSize: 10 }}>+</span>}
+                        <kbd style={kbdStyle}>{k}</kbd>
+                      </span>
+                    ))}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <span style={hintStyle}>{t('shortcut.rightclick')}</span>
+            <span style={hintStyle}>{t('settings.shortcuts.hint')}</span>
+          </section>
         </div>
 
         {/* Azioni */}
@@ -221,6 +265,16 @@ function Segmented<T extends string>({
   )
 }
 
+/** Scorciatoie gestite in App.tsx, elencate qui come promemoria. */
+const SHORTCUTS: { label: string; keys: string[] }[] = [
+  { label: 'shortcut.next', keys: ['Ctrl', 'Tab'] },
+  { label: 'shortcut.prev', keys: ['Ctrl', 'Shift', 'Tab'] },
+  { label: 'shortcut.jump', keys: ['Alt', '1…9'] },
+  { label: 'shortcut.move', keys: ['Ctrl', 'Alt', '←↑→↓'] },
+  { label: 'shortcut.close', keys: ['Ctrl', 'Shift', 'W'] },
+  { label: 'shortcut.sidebar', keys: ['Ctrl', 'B'] }
+]
+
 const overlayStyle: CSSProperties = {
   position: 'fixed',
   inset: 0,
@@ -268,6 +322,18 @@ const hintStyle: CSSProperties = {
   fontSize: 11.5,
   lineHeight: 1.5,
   color: 'var(--color-neutral-500)'
+}
+/** Tasto disegnato: monospazio, bordo tenue, come i "cap" di una tastiera. */
+const kbdStyle: CSSProperties = {
+  fontFamily: 'ui-monospace, Menlo, Consolas, monospace',
+  fontSize: 10.5,
+  lineHeight: 1.4,
+  color: 'var(--color-neutral-300)',
+  background: 'color-mix(in srgb, var(--color-text) 7%, transparent)',
+  border: '1px solid var(--color-divider)',
+  borderRadius: 'var(--radius-sm)',
+  padding: '1px 5px',
+  whiteSpace: 'nowrap'
 }
 const btnBase: CSSProperties = {
   fontFamily: 'var(--font-body)',

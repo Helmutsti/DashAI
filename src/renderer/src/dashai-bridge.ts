@@ -82,6 +82,7 @@ export function createDashaiBridge() {
     pickDirectory: (): Promise<string | null> => invoke('dialog_pick_directory'),
     pickFile: (): Promise<string | null> => invoke('dialog_pick_file'),
     openInFileManager: (path: string): Promise<boolean> => invoke('shell_open_path', { path }),
+    openUrl: (url: string): Promise<boolean> => invoke('shell_open_url', { url }),
     isFullScreen: (): Promise<boolean> => invoke('window_is_fullscreen'),
     onFullScreenChange: (cb: (isFullScreen: boolean) => void): (() => void) =>
       subscribe<boolean>('dashai:fullscreen', cb)

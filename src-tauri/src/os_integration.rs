@@ -38,3 +38,14 @@ pub fn shell_open_path(app: AppHandle, path: String) -> bool {
     };
     app.opener().open_path(target, None::<&str>).is_ok()
 }
+
+/// Apre un URL nel browser predefinito (link cliccati nei terminali).
+///
+/// Accetta solo http/https: `open_url` passerebbe volentieri anche `file:` o uno
+/// schema registrato dal sistema, e l'input arriva dall'output di un processo —
+/// non è una cosa che l'utente ha scritto.
+#[tauri::command]
+pub fn shell_open_url(app: AppHandle, url: String) -> bool {
+    let ok = url.starts_with("http://") || url.starts_with("https://");
+    ok && app.opener().open_url(url, None::<&str>).is_ok()
+}

@@ -12,12 +12,28 @@ type Dict = Record<string, string>
 const it: Dict = {
   'nav.settings': 'Impostazioni',
 
+  'prompts.title': 'Prompt',
+  'prompts.new': 'nuovo prompt',
+  'prompts.newCard': 'Nuovo prompt',
+  'prompts.delete': 'Elimina prompt',
+
   'settings.title': 'Impostazioni',
   'settings.close': 'Chiudi',
   'settings.done': 'Fatto',
 
   'settings.section.appearance': 'Aspetto',
   'settings.section.data': 'Progetti e dati',
+  'settings.section.shortcuts': 'Scorciatoie',
+
+  'shortcut.next': 'Scheda successiva',
+  'shortcut.prev': 'Scheda precedente',
+  'shortcut.jump': 'Vai alla scheda N',
+  'shortcut.move': 'Sposta il fuoco sulla griglia',
+  'shortcut.close': 'Chiudi la scheda attiva',
+  'shortcut.sidebar': 'Mostra/nascondi la barra laterale',
+  'shortcut.rightclick': 'Tasto destro: incolla nel terminale (copia se c’è una selezione)',
+  'settings.shortcuts.hint':
+    'La scheda attiva è quella col bordo evidenziato. Ctrl+W non è usato: nella shell serve a cancellare la parola precedente.',
 
   'settings.language': 'Lingua',
   'settings.theme': 'Tema',
@@ -39,12 +55,28 @@ const it: Dict = {
 const en: Dict = {
   'nav.settings': 'Settings',
 
+  'prompts.title': 'Prompts',
+  'prompts.new': 'new prompt',
+  'prompts.newCard': 'New prompt',
+  'prompts.delete': 'Delete prompt',
+
   'settings.title': 'Settings',
   'settings.close': 'Close',
   'settings.done': 'Done',
 
   'settings.section.appearance': 'Appearance',
   'settings.section.data': 'Projects & data',
+  'settings.section.shortcuts': 'Shortcuts',
+
+  'shortcut.next': 'Next card',
+  'shortcut.prev': 'Previous card',
+  'shortcut.jump': 'Go to card N',
+  'shortcut.move': 'Move focus across the grid',
+  'shortcut.close': 'Close the active card',
+  'shortcut.sidebar': 'Show/hide the sidebar',
+  'shortcut.rightclick': 'Right click: paste into the terminal (copy if there is a selection)',
+  'settings.shortcuts.hint':
+    'The active card is the one with the highlighted border. Ctrl+W is left alone: in the shell it deletes the previous word.',
 
   'settings.language': 'Language',
   'settings.theme': 'Theme',

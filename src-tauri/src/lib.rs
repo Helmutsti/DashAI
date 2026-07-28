@@ -26,6 +26,7 @@ pub fn run() {
       os_integration::dialog_pick_directory,
       os_integration::dialog_pick_file,
       os_integration::shell_open_path,
+      os_integration::shell_open_url,
       windows::window_is_fullscreen,
     ])
     .setup(|app| {

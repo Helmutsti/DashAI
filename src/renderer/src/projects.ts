@@ -69,7 +69,13 @@ export interface QuickCommand {
   shellPath?: string
 }
 
-/** Prompt di testo salvato nel progetto (editor semplice, non un terminale). */
+/**
+ * Prompt di testo (editor semplice, non un terminale).
+ *
+ * I prompt sono globali: non appartengono a un progetto, vivono in un unico
+ * elenco e si aprono dalla voce "Prompt" della barra laterale. Prima erano
+ * annidati nei progetti (`Project.prompts`), campo rimosso nella versione 2.
+ */
 export interface Prompt {
   id: string
   label: string
@@ -84,8 +90,6 @@ export interface Project {
   color: string
   /** cartella di partenza; '' = home utente */
   cwd: string
-  /** prompt di testo salvati (editor semplice con copia). */
-  prompts: Prompt[]
   /** terminali lanciabili (shell pulita, comandi, avvii AI: tutti uguali). */
   commands: QuickCommand[]
 }
@@ -93,9 +97,11 @@ export interface Project {
 export interface ProjectsFile {
   version: number
   projects: Project[]
+  /** elenco unico dei prompt, non più suddiviso per progetto */
+  prompts: Prompt[]
 }
 
-export const PROJECTS_VERSION = 1
+export const PROJECTS_VERSION = 2
 
 /** ---- Id univoci (persistiti in projects.json) ---- */
 let seq = 0
@@ -114,7 +120,6 @@ export function makeProject(partial?: Partial<Project>): Project {
     icon: 'Folder',
     color: TOP_COLORS[1],
     cwd: '',
-    prompts: [],
     commands: [],
     ...partial
   }
@@ -142,23 +147,39 @@ export function makePrompt(partial?: Partial<Prompt>): Prompt {
 }
 
 /**
- * Normalizza i progetti letti da disco/import: garantisce che `prompts` e
- * `commands` siano array (file salvati prima dell'introduzione dei prompt non
- * hanno il campo `prompts`).
+ * Normalizza i progetti letti da disco/import: garantisce che `commands` sia un
+ * array e scarta i `prompts` dei file in versione 1, quando i prompt vivevano
+ * dentro il progetto. Il campo va rimosso e non solo ignorato, altrimenti
+ * resterebbe a sporcare il file a ogni salvataggio successivo.
  */
 export function normalizeProjects(arr: unknown): Project[] {
   if (!Array.isArray(arr)) return []
   return arr.map((raw) => {
-    const p = raw as Partial<Project>
+    const { prompts: _legacy, ...p } = raw as Partial<Project> & { prompts?: unknown }
     return {
       ...(p as Project),
-      prompts: Array.isArray(p.prompts) ? p.prompts : [],
       commands: Array.isArray(p.commands) ? p.commands : []
     }
   })
 }
 
+/** Normalizza l'elenco globale dei prompt letto da disco/import. */
+export function normalizePrompts(arr: unknown): Prompt[] {
+  if (!Array.isArray(arr)) return []
+  return arr
+    .filter((raw): raw is Partial<Prompt> => !!raw && typeof raw === 'object')
+    .map((p) => ({
+      id: typeof p.id === 'string' ? p.id : newPromptId(),
+      label: typeof p.label === 'string' ? p.label : 'Prompt',
+      content: typeof p.content === 'string' ? p.content : ''
+    }))
+}
+
 /** Stato iniziale quando il file non esiste ancora. */
 export function seedProjects(): ProjectsFile {
-  return { version: PROJECTS_VERSION, projects: [makeProject({ label: 'Nome App', icon: 'Folder' })] }
+  return {
+    version: PROJECTS_VERSION,
+    projects: [makeProject({ label: 'Nome App', icon: 'Folder' })],
+    prompts: []
+  }
 }

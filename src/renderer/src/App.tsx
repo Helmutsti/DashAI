@@ -22,6 +22,7 @@ import {
   makePrompt,
   makeProject,
   normalizeProjects,
+  normalizePrompts,
   seedProjects,
   type Project,
   type Prompt,
@@ -49,10 +50,24 @@ export default function App(): React.ReactElement {
   const [dropTarget, setDropTarget] = useState<DropTarget>(null)
   const [dropZone, setDropZone] = useState<number | null>(null)
   const [projects, setProjects] = useState<Project[]>([])
+  // Elenco unico dei prompt: non appartengono più a un progetto.
+  const [prompts, setPrompts] = useState<Prompt[]>([])
+  const [promptsCollapsed, setPromptsCollapsed] = useState(true)
   const [editingProject, setEditingProject] = useState<Project | null>(null)
   const [editingIsNew, setEditingIsNew] = useState(false)
   const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(new Set())
   const [settingsOpen, setSettingsOpen] = useState(false)
+  // Card "attiva": bersaglio delle shortcut da tastiera. `focusTick` viene
+  // incrementato solo quando *noi* vogliamo spostare il fuoco del DOM (shortcut,
+  // apertura, chiusura): un clic si porta già il fuoco da solo e non deve
+  // rifocalizzare nulla.
+  const [activeId, setActiveId] = useState<string | null>(null)
+  const [focusTick, setFocusTick] = useState(0)
+  // Evidenziazione momentanea: il bordo serve a dire "sei finito qui" quando ci
+  // si sposta da tastiera, non a marcare uno stato permanente. Compare solo sul
+  // salto e sfuma da sé (con un clic sai già dove sei andato).
+  const [highlightId, setHighlightId] = useState<string | null>(null)
+  const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const { t } = useSettings()
 
   // Su macOS con titleBarStyle 'hiddenInset' i semafori (chiudi/min/max) stanno
@@ -87,11 +102,15 @@ export default function App(): React.ReactElement {
       if (data && Array.isArray(data.projects) && data.projects.length > 0) {
         const list = normalizeProjects(data.projects)
         setProjects(list)
+        // I prompt dei file in versione 1 (annidati nei progetti) non vengono
+        // recuperati: si legge solo l'elenco globale.
+        setPrompts(normalizePrompts(data.prompts))
         // All'avvio i progetti sono tutti collassati.
         setCollapsedProjects(new Set(list.map((p) => p.id)))
       } else {
         const seed = seedProjects()
         setProjects(seed.projects)
+        setPrompts(seed.prompts)
         setCollapsedProjects(new Set(seed.projects.map((p) => p.id)))
         void window.dashai.projects.save(seed)
       }
@@ -101,10 +120,20 @@ export default function App(): React.ReactElement {
     }
   }, [])
 
-  const persistProjects = (next: Project[]): void => {
-    setProjects(next)
-    void window.dashai.projects.save({ version: PROJECTS_VERSION, projects: next } satisfies ProjectsFile)
+  // projects.json contiene sia i progetti sia l'elenco globale dei prompt: ogni
+  // salvataggio riscrive il file intero, quindi va passata anche la parte che
+  // non sta cambiando.
+  const persist = (nextProjects: Project[], nextPrompts: Prompt[]): void => {
+    setProjects(nextProjects)
+    setPrompts(nextPrompts)
+    void window.dashai.projects.save({
+      version: PROJECTS_VERSION,
+      projects: nextProjects,
+      prompts: nextPrompts
+    } satisfies ProjectsFile)
   }
+  const persistProjects = (next: Project[]): void => persist(next, prompts)
+  const persistPrompts = (next: Prompt[]): void => persist(projects, next)
 
   // Il "+" apre una BOZZA: nulla viene aggiunto finchÃ© non si salva.
   const addProject = (): void => {
@@ -148,6 +177,9 @@ export default function App(): React.ReactElement {
         ? [{ h: 1, cols: [col] }]
         : s.map((row, i) => (i === 0 ? { ...row, cols: [...row.cols, col] } : row))
     )
+    // La card appena aperta è quella su cui si vuole scrivere.
+    setActiveId(col.id)
+    setFocusTick((n) => n + 1)
   }
   const openCommandCard = (p: Project, cmd: QuickCommand): void =>
     openColumn({
@@ -161,15 +193,16 @@ export default function App(): React.ReactElement {
       closeOnExit: cmd.closeOnExit
     })
 
-  // Apre una card editor: nuovo prompt vuoto oppure un prompt salvato del progetto.
+  // Apre una card editor: nuovo prompt vuoto oppure uno dell'elenco globale.
   // Nasce più stretta dei terminali (w<1) così si distingue anche per dimensione.
-  const openPromptCard = (p: Project, prompt?: Prompt): void =>
+  // Senza progetto e senza colore: color '' fa cadere la card sulla superficie
+  // neutra, e senza projectId l'intestazione non mostra alcun prefisso.
+  const openPromptCard = (prompt?: Prompt): void =>
     openColumn(
       {
         kind: 'prompt',
-        projectId: p.id,
-        title: prompt?.label ?? 'Nuovo prompt',
-        color: p.color,
+        title: prompt?.label ?? t('prompts.newCard'),
+        color: '',
         promptId: prompt?.id,
         content: prompt?.content ?? ''
       },
@@ -187,51 +220,62 @@ export default function App(): React.ReactElement {
       }))
     )
 
-  // Salva il testo di una card prompt nel progetto: aggiorna quello legato
-  // (promptId) o ne crea uno nuovo, legando poi la card al prompt creato.
+  // Salva il testo di una card prompt nell'elenco globale: aggiorna quello
+  // legato (promptId) o ne crea uno nuovo, legando poi la card al prompt creato.
   const savePrompt = (col: Column, content: string): void => {
-    const project = projects.find((x) => x.id === col.projectId)
-    if (!project) return
     if (col.promptId) {
       const pid = col.promptId
-      persistProjects(
-        projects.map((x) =>
-          x.id !== project.id
-            ? x
-            : {
-                ...x,
-                prompts: x.prompts.map((pr) =>
-                  pr.id === pid ? { ...pr, label: col.title || pr.label, content } : pr
-                )
-              }
-        )
+      persistPrompts(
+        prompts.map((pr) => (pr.id === pid ? { ...pr, label: col.title || pr.label, content } : pr))
       )
-    } else {
-      const created = makePrompt({ label: col.title || 'Nuovo prompt', content })
-      persistProjects(
-        projects.map((x) =>
-          x.id !== project.id ? x : { ...x, prompts: [...x.prompts, created] }
-        )
-      )
-      // Lega la card al prompt appena creato: i salvataggi successivi lo aggiornano.
-      setRows((s) =>
-        s.map((row) => ({
-          ...row,
-          cols: row.cols.map((c) => (c.id === col.id ? { ...c, promptId: created.id } : c))
-        }))
-      )
+      return
     }
+    const created = makePrompt({ label: col.title || t('prompts.newCard'), content })
+    persistPrompts([...prompts, created])
+    // Lega la card al prompt appena creato: i salvataggi successivi lo aggiornano.
+    setRows((s) =>
+      s.map((row) => ({
+        ...row,
+        cols: row.cols.map((c) => (c.id === col.id ? { ...c, promptId: created.id } : c))
+      }))
+    )
   }
 
-  const deletePrompt = (projectId: string, promptId: string): void =>
-    persistProjects(
-      projects.map((x) =>
-        x.id !== projectId ? x : { ...x, prompts: x.prompts.filter((pr) => pr.id !== promptId) }
-      )
+  const deletePrompt = (promptId: string): void =>
+    persistPrompts(prompts.filter((pr) => pr.id !== promptId))
+
+  // --- Card attiva --------------------------------------------------------
+  /** Card in ordine di lettura (riga → colonna): ordine del ciclo e di Alt+N. */
+  const cardOrder = rows.flatMap((row, r) => row.cols.map((col, c) => ({ id: col.id, r, c })))
+
+  /** Card su cui spostare il fuoco quando `id` viene chiusa. */
+  const cardAfter = (id: string): string | null => {
+    const i = cardOrder.findIndex((x) => x.id === id)
+    if (i < 0) return null
+    return cardOrder[i + 1]?.id ?? cardOrder[i - 1]?.id ?? null
+  }
+
+  /** Rende attiva una card, la riapre se compressa e le porta il fuoco. */
+  const focusCard = (id: string | null | undefined): void => {
+    if (!id) return
+    setActiveId(id)
+    setHighlightId(id)
+    if (highlightTimer.current) clearTimeout(highlightTimer.current)
+    highlightTimer.current = setTimeout(() => setHighlightId(null), HIGHLIGHT_MS)
+    setRows((s) =>
+      s.map((row) => ({
+        ...row,
+        cols: row.cols.map((c) => (c.id === id && c.collapsed ? { ...c, collapsed: false } : c))
+      }))
     )
+    setFocusTick((n) => n + 1)
+  }
 
   const removeColById = (id: string): void => {
     window.dashai.terminal.dispose(id)
+    // Card chiusa da sola (processo terminato): l'attiva passa alla vicina, ma
+    // senza rubare il fuoco a dove sta scrivendo l'utente.
+    if (activeId === id) setActiveId(cardAfter(id))
     setRows((s) =>
       s
         .map((row) => ({ ...row, cols: row.cols.filter((c) => c.id !== id) }))
@@ -351,6 +395,8 @@ export default function App(): React.ReactElement {
     setOpenMenu(null)
     const col = rows[r]?.cols[c]
     if (col) window.dashai.terminal.dispose(col.id) // termina la shell
+    // Chiusura voluta dall'utente: il fuoco passa alla card vicina.
+    if (col && activeId === col.id) focusCard(cardAfter(col.id))
     setRows((s) =>
       s
         .map((row, ri) => (ri === r ? { ...row, cols: row.cols.filter((_, ci) => ci !== c) } : row))
@@ -368,6 +414,120 @@ export default function App(): React.ReactElement {
       )
     )
   }
+
+  // --- Shortcut da tastiera -----------------------------------------------
+  // Porta il fuoco del DOM dentro la card attiva. Sia il terminale (textarea di
+  // servizio di xterm) sia l'editor di prompt espongono una textarea: è quella
+  // che deve ricevere i tasti.
+  useEffect(() => {
+    if (focusTick === 0 || !activeId) return
+    const host = document.querySelector(`[data-card-id="${activeId}"]`)
+    host?.querySelector<HTMLTextAreaElement>('textarea')?.focus()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo su richiesta esplicita
+  }, [focusTick])
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent): void => {
+      // Niente shortcut mentre si rinomina una card o con un modale aperto.
+      if (editing || editingProject || settingsOpen) return
+
+      // Il listener è in fase di capture e ferma la propagazione: senza questo
+      // xterm inoltrerebbe comunque i tasti alla shell.
+      const take = (): void => {
+        e.preventDefault()
+        e.stopPropagation()
+      }
+
+      const step = (delta: number): void => {
+        if (cardOrder.length === 0) return
+        const i = cardOrder.findIndex((x) => x.id === activeId)
+        const next = i < 0 ? 0 : (i + delta + cardOrder.length) % cardOrder.length
+        focusCard(cardOrder[next].id)
+      }
+
+      // ←/→ scorrono la riga, ↑/↓ cambiano riga tenendo la colonna più vicina.
+      // Nessun wrap: sui bordi della griglia il fuoco resta dov'è.
+      const move = (dir: 'left' | 'right' | 'up' | 'down'): void => {
+        const pos = cardOrder.find((x) => x.id === activeId)
+        if (!pos) {
+          step(1)
+          return
+        }
+        if (dir === 'left' || dir === 'right') {
+          focusCard(rows[pos.r]?.cols[pos.c + (dir === 'left' ? -1 : 1)]?.id)
+          return
+        }
+        const row = rows[pos.r + (dir === 'up' ? -1 : 1)]
+        if (row) focusCard(row.cols[Math.min(pos.c, row.cols.length - 1)]?.id)
+      }
+
+      // Ctrl+Tab / Ctrl+Shift+Tab → card successiva / precedente (ciclico)
+      if (e.ctrlKey && !e.altKey && e.key === 'Tab') {
+        take()
+        step(e.shiftKey ? -1 : 1)
+        return
+      }
+
+      // Alt+1…9 → salto diretto alla card N. Si guarda `code` e non `key`:
+      // su macOS Alt+1 non produce il carattere '1'.
+      if (e.altKey && !e.ctrlKey && !e.shiftKey && /^Digit[1-9]$/.test(e.code)) {
+        const target = cardOrder[Number(e.code.slice(5)) - 1]
+        if (target) {
+          take()
+          focusCard(target.id)
+        }
+        return
+      }
+
+      // Ctrl+Alt+frecce → fuoco direzionale sulla griglia
+      if (e.ctrlKey && e.altKey) {
+        const dir = DIRECTIONS[e.key]
+        if (dir) {
+          take()
+          move(dir)
+        }
+        return
+      }
+
+      // Ctrl+Shift+W → chiudi la card attiva. Non Ctrl+W: nella shell cancella
+      // la parola precedente (readline) e non va rubato.
+      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'w') {
+        const pos = cardOrder.find((x) => x.id === activeId)
+        if (pos) {
+          take()
+          removeCol(pos.r, pos.c)
+        }
+        return
+      }
+
+      // Ctrl+B → mostra/nascondi la barra laterale
+      if (e.ctrlKey && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'b') {
+        take()
+        setCollapsed((v) => !v)
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown, true)
+    return () => window.removeEventListener('keydown', onKeyDown, true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- helper ricreati a ogni render
+  }, [rows, activeId, editing, editingProject, settingsOpen])
+
+  useEffect(
+    () => () => {
+      if (highlightTimer.current) clearTimeout(highlightTimer.current)
+    },
+    []
+  )
+
+  // Il menu contestuale nativo del webview mostrerebbe voci da browser
+  // (Ricarica, Ispeziona): lo si blocca in tutta l'app. Le superfici che hanno
+  // un comportamento proprio — terminale e editor di prompt — gestiscono
+  // `contextmenu` sui propri elementi, che viene eseguito prima di questo.
+  useEffect(() => {
+    const block = (e: MouseEvent): void => e.preventDefault()
+    document.addEventListener('contextmenu', block)
+    return () => document.removeEventListener('contextmenu', block)
+  }, [])
 
   // --- Drag & drop schede -------------------------------------------------
   const startCardDrag = (r: number, c: number, e: React.DragEvent): void => {
@@ -497,9 +657,12 @@ export default function App(): React.ReactElement {
                   r={r}
                   c={c}
                   col={{ ...col, w: (col.w / totalW) * row.cols.length }}
+                  projectLabel={projects.find((p) => p.id === col.projectId)?.label}
                   isMenuOpen={openMenu === id}
                   isEditing={editing === id}
                   isDragged={!!dragCard && dragCard.r === r && dragCard.c === c}
+                  isActive={highlightId === id}
+                  onActivate={() => setActiveId(id)}
                   dropSide={dropSide}
                   onToggleMenu={(e) => {
                     e.stopPropagation()
@@ -676,6 +839,140 @@ export default function App(): React.ReactElement {
               gap: 'var(--space-3)'
             }}
           >
+            {/* Voce fissa "Prompt": elenco unico. Non è un progetto e non ha
+                colore — i prompt non appartengono a nessuno.
+                `order: 1` la manda in fondo, sotto tutti i progetti (che stanno
+                a 0): resta scritta qui sopra per non spezzare in due il blocco
+                dell'albero progetti. */}
+            <div style={{ order: 1, display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
+              <div
+                className="project-row"
+                onClick={() => setPromptsCollapsed((v) => !v)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 'var(--space-2)',
+                  padding: 'var(--space-2)',
+                  borderRadius: 'var(--radius-md)',
+                  cursor: 'pointer',
+                  minWidth: 0
+                }}
+              >
+                {promptsCollapsed ? (
+                  <CaretRight size={12} color="var(--color-neutral-500)" style={{ flex: '0 0 auto' }} />
+                ) : (
+                  <CaretDown size={12} color="var(--color-neutral-500)" style={{ flex: '0 0 auto' }} />
+                )}
+                <span
+                  style={{
+                    flex: '1 1 auto',
+                    minWidth: 0,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    fontFamily: 'var(--font-heading)',
+                    fontWeight: 500,
+                    fontSize: 13,
+                    color: 'var(--color-text)'
+                  }}
+                >
+                  {t('prompts.title')}
+                </span>
+                {/* Stessa scatola 22×22 dei pulsanti cartella/ingranaggio delle
+                    righe progetto: senza, il numero finirebbe a filo del bordo
+                    e non allineato alla loro colonna di icone. */}
+                <span
+                  style={{
+                    flex: '0 0 auto',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: 22,
+                    height: 22,
+                    fontSize: 11,
+                    color: 'var(--color-neutral-500)'
+                  }}
+                >
+                  {prompts.length}
+                </span>
+              </div>
+
+              {!promptsCollapsed && (
+                <>
+                  {/* "nuovo prompt": apre subito una card editor vuota */}
+                  <div
+                    className="cmd-row"
+                    onClick={() => openPromptCard()}
+                    title={t('prompts.newCard')}
+                    style={promptRowStyle}
+                  >
+                    <Plus size={13} color="var(--color-neutral-400)" style={{ flex: '0 0 auto' }} />
+                    <span
+                      style={{
+                        flex: '1 1 auto',
+                        minWidth: 0,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        fontSize: 13,
+                        fontStyle: 'italic',
+                        color: 'var(--color-neutral-400)'
+                      }}
+                    >
+                      {t('prompts.new')}
+                    </span>
+                  </div>
+
+                  {/* Prompt salvati: clic = apri la card; cestino = elimina */}
+                  {prompts.map((pr) => (
+                    <div
+                      key={pr.id}
+                      className="cmd-row"
+                      onClick={() => openPromptCard(pr)}
+                      title={pr.label}
+                      style={promptRowStyle}
+                    >
+                      <PencilSimple size={14} color="var(--color-neutral-400)" style={{ flex: '0 0 auto' }} />
+                      <span
+                        style={{
+                          flex: '1 1 auto',
+                          minWidth: 0,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          fontSize: 13,
+                          color: 'var(--color-neutral-300)'
+                        }}
+                      >
+                        {pr.label}
+                      </span>
+                      <div
+                        className="gear-btn"
+                        title={t('prompts.delete')}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          deletePrompt(pr.id)
+                        }}
+                        style={{
+                          flex: '0 0 auto',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          width: 18,
+                          height: 18,
+                          borderRadius: 'var(--radius-sm)',
+                          color: 'var(--color-neutral-500)',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <Trash size={13} />
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+
             {projects.map((p) => (
               <div key={p.id} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
                 {/* Riga progetto: clic = espandi/comprimi i comandi. L'intero item
@@ -759,98 +1056,9 @@ export default function App(): React.ReactElement {
                 </div>
 
                 {/* Contenuto annidato del progetto (visibile se espanso):
-                    "nuovo prompt", prompt salvati, poi i comandi/terminali. */}
+                    i comandi/terminali. I prompt non stanno più qui. */}
                 {!collapsedProjects.has(p.id) && (
                   <>
-                    {/* "nuovo prompt": apre subito una card editor di testo */}
-                    <div
-                      className="cmd-row"
-                      onClick={() => openPromptCard(p)}
-                      title="Nuovo prompt"
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 'var(--space-3)',
-                        padding: 'var(--space-1) var(--space-2)',
-                        marginLeft: 'var(--space-5)',
-                        borderRadius: 'var(--radius-sm)',
-                        cursor: 'pointer',
-                        minWidth: 0
-                      }}
-                    >
-                      <PencilSimple size={14} color="var(--color-neutral-400)" style={{ flex: '0 0 auto' }} />
-                      <span
-                        style={{
-                          flex: '1 1 auto',
-                          minWidth: 0,
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                          fontSize: 13,
-                          fontStyle: 'italic',
-                          color: 'var(--color-neutral-400)'
-                        }}
-                      >
-                        nuovo prompt
-                      </span>
-                    </div>
-
-                    {/* Prompt salvati: clic = riapri la card; cestino su hover = elimina */}
-                    {p.prompts.map((pr) => (
-                      <div
-                        key={pr.id}
-                        className="cmd-row"
-                        onClick={() => openPromptCard(p, pr)}
-                        title={pr.label}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 'var(--space-3)',
-                          padding: 'var(--space-1) var(--space-2)',
-                          marginLeft: 'var(--space-5)',
-                          borderRadius: 'var(--radius-sm)',
-                          cursor: 'pointer',
-                          minWidth: 0
-                        }}
-                      >
-                        <PencilSimple size={14} color="var(--color-neutral-400)" style={{ flex: '0 0 auto' }} />
-                        <span
-                          style={{
-                            flex: '1 1 auto',
-                            minWidth: 0,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                            fontSize: 13,
-                            color: 'var(--color-neutral-300)'
-                          }}
-                        >
-                          {pr.label}
-                        </span>
-                        <div
-                          className="gear-btn"
-                          title="Elimina prompt"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            deletePrompt(p.id, pr.id)
-                          }}
-                          style={{
-                            flex: '0 0 auto',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            width: 18,
-                            height: 18,
-                            borderRadius: 'var(--radius-sm)',
-                            color: 'var(--color-neutral-500)',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          <Trash size={13} />
-                        </div>
-                      </div>
-                    ))}
-
                     {/* Comandi rapidi / terminali */}
                     {p.commands.map((cmd) => (
                       <div
@@ -971,13 +1179,37 @@ export default function App(): React.ReactElement {
       {settingsOpen && (
         <SettingsModal
           projects={projects}
+          prompts={prompts}
           projectsVersion={PROJECTS_VERSION}
-          onReplaceProjects={(next) => persistProjects(next)}
+          onReplaceData={(nextProjects, nextPrompts) => persist(nextProjects, nextPrompts)}
           onClose={() => setSettingsOpen(false)}
         />
       )}
     </div>
   )
+}
+
+/** Riga dell'elenco prompt, rientrata sotto la voce "Prompt". */
+const promptRowStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 'var(--space-3)',
+  padding: 'var(--space-1) var(--space-2)',
+  marginLeft: 'var(--space-5)',
+  borderRadius: 'var(--radius-sm)',
+  cursor: 'pointer',
+  minWidth: 0
+}
+
+/** Durata dell'evidenziazione della card raggiunta da tastiera. */
+const HIGHLIGHT_MS = 900
+
+/** Frecce → direzione, per il fuoco direzionale con Ctrl+Alt. */
+const DIRECTIONS: Record<string, 'left' | 'right' | 'up' | 'down' | undefined> = {
+  ArrowLeft: 'left',
+  ArrowRight: 'right',
+  ArrowUp: 'up',
+  ArrowDown: 'down'
 }
 
 const iconSquare: React.CSSProperties = {

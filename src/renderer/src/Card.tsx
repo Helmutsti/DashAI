@@ -21,9 +21,15 @@ export interface CardProps {
   r: number
   c: number
   col: Column
+  /** etichetta del progetto di appartenenza, mostrata come prefisso del titolo */
+  projectLabel?: string
   isMenuOpen: boolean
   isEditing: boolean
   isDragged: boolean
+  /** card col fuoco: bersaglio delle shortcut (Ctrl+Tab, Alt+N, …) */
+  isActive: boolean
+  /** l'utente ha interagito con questa card: diventa quella attiva */
+  onActivate: () => void
   dropSide: 'before' | 'after' | null
   onToggleMenu: (e: React.MouseEvent) => void
   onRename: (e: React.MouseEvent) => void
@@ -45,7 +51,7 @@ export interface CardProps {
 }
 
 export default function Card(props: CardProps): React.ReactElement {
-  const { r, c, col, isMenuOpen, isEditing, isDragged, dropSide } = props
+  const { r, c, col, projectLabel, isMenuOpen, isEditing, isDragged, isActive, dropSide } = props
   const inputRef = useRef<HTMLInputElement>(null)
   const triggerRef = useRef<HTMLDivElement>(null)
   const [menuPos, setMenuPos] = useState<{ top?: number; bottom?: number; right: number } | null>(null)
@@ -79,20 +85,31 @@ export default function Card(props: CardProps): React.ReactElement {
   // Bordo vero (non box-shadow): un box-shadow con colore semi-trasparente
   // arrotonda gli angoli in modo diverso da un border reale sotto WebKit,
   // deformando visibilmente il radius rispetto al resto della card.
-  const cardBorderColor = color
-    ? `color-mix(in srgb, ${color} 30%, transparent)`
-    : 'var(--color-neutral-800)'
-  let dropIndicator: string | undefined
-  if (dropSide === 'before') dropIndicator = 'inset 4px 0 0 var(--color-accent)'
-  if (dropSide === 'after') dropIndicator = 'inset -4px 0 0 var(--color-accent)'
+  // Card appena raggiunta da tastiera: bordo a contrasto per un istante (App
+  // spegne `isActive` da solo). Il colore accent è opaco, quindi non deforma il
+  // radius come farebbe un bordo semi-trasparente (vedi nota sopra).
+  const cardBorderColor = isActive
+    ? 'var(--color-accent)'
+    : color
+      ? `color-mix(in srgb, ${color} 30%, transparent)`
+      : 'var(--color-neutral-800)'
+  const shadows: string[] = []
+  if (dropSide === 'before') shadows.push('inset 4px 0 0 var(--color-accent)')
+  if (dropSide === 'after') shadows.push('inset -4px 0 0 var(--color-accent)')
+  if (isActive) shadows.push('0 0 0 1px var(--color-accent)')
 
   const isPrompt = col.kind === 'prompt'
   const title = col.title || (isPrompt ? 'Nuovo prompt' : `Scheda ${r + 1}.${c + 1}`)
 
   return (
     <div
+      data-card-id={col.id}
       onDragOver={props.onDragOver}
       onDrop={props.onDrop}
+      // capture: qualsiasi interazione dentro la card (anche nel terminale, che
+      // ferma la propagazione dei suoi eventi) la rende quella attiva.
+      onPointerDownCapture={props.onActivate}
+      onFocusCapture={props.onActivate}
       style={{
         flex: `${col.w} 1 0%`,
         // Compressa: si riduce alla sola intestazione invece di stirarsi
@@ -103,7 +120,12 @@ export default function Card(props: CardProps): React.ReactElement {
         opacity: isDragged ? 0.4 : 1,
         background: cardBg,
         border: `1px solid ${cardBorderColor}`,
-        boxShadow: dropIndicator,
+        boxShadow: shadows.length > 0 ? shadows.join(', ') : undefined,
+        // L'evidenziazione entra netta e sfuma: senza transizione lo stacco
+        // sarebbe uno sfarfallio a ogni Ctrl+Tab.
+        transition: isActive
+          ? 'border-color 0.08s ease, box-shadow 0.08s ease'
+          : 'border-color 0.4s ease, box-shadow 0.4s ease',
         borderRadius: 'var(--radius-lg)',
         display: 'flex',
         flexDirection: 'column',
@@ -169,8 +191,6 @@ export default function Card(props: CardProps): React.ReactElement {
               fontFamily: 'var(--font-heading)',
               fontSize: 11,
               fontWeight: 600,
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
               color: 'var(--color-text)',
               background: 'var(--color-bg)',
               border: '1px solid var(--color-accent)',
@@ -179,25 +199,60 @@ export default function Card(props: CardProps): React.ReactElement {
             }}
           />
         ) : (
+          // "PROGETTO · Titolo scheda": il solo titolo non basta a riconoscere
+          // a colpo d'occhio a quale progetto appartiene una card. Il nome del
+          // progetto porta il suo colore, il titolo resta in testo normale.
           <div
             onDoubleClick={props.onRename}
-            title="Doppio clic per rinominare"
+            title={projectLabel ? `${projectLabel} · ${title}` : title}
             style={{
               flex: '1 1 auto',
               minWidth: 0,
+              display: 'flex',
+              alignItems: 'baseline',
+              gap: 4,
               overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
               fontFamily: 'var(--font-heading)',
               fontSize: 11,
               fontWeight: 600,
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
-              color: color || 'var(--color-accent)',
               cursor: 'text'
             }}
           >
-            {title}
+            {projectLabel && (
+              <>
+                {/* si accorcia prima del titolo, che è l'informazione più specifica */}
+                <span
+                  style={{
+                    flex: '0 1 auto',
+                    minWidth: 0,
+                    maxWidth: '50%',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    letterSpacing: '0.08em',
+                    textTransform: 'uppercase',
+                    color: color || 'var(--color-accent)'
+                  }}
+                >
+                  {projectLabel}
+                </span>
+                <span style={{ flex: '0 0 auto', color: 'var(--color-neutral-500)' }}>·</span>
+              </>
+            )}
+            <span
+              style={{
+                flex: '1 1 auto',
+                minWidth: 0,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                color: projectLabel ? 'var(--color-text)' : color || 'var(--color-accent)',
+                letterSpacing: projectLabel ? undefined : '0.08em',
+                textTransform: projectLabel ? undefined : 'uppercase'
+              }}
+            >
+              {title}
+            </span>
           </div>
         )}
 
