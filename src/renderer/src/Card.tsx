@@ -40,6 +40,8 @@ export interface CardProps {
   onToggleCollapse: () => void
   /** (card prompt) salva il testo corrente nel progetto. */
   onSavePrompt: (content: string) => void
+  /** (card prompt) aggiorna il testo nello stato di App a ogni battuta. */
+  onChangePrompt: (content: string) => void
 }
 
 export default function Card(props: CardProps): React.ReactElement {
@@ -285,8 +287,8 @@ export default function Card(props: CardProps): React.ReactElement {
       >
         {isPrompt ? (
           <PromptView
-            termId={col.id}
-            initialContent={col.content}
+            content={col.content ?? ''}
+            onChange={props.onChangePrompt}
             saved={!!col.promptId}
             onSave={props.onSavePrompt}
           />

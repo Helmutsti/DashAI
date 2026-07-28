@@ -3,10 +3,11 @@ import { Check, Copy, FloppyDisk } from '@phosphor-icons/react'
 import type { CSSProperties } from 'react'
 
 export interface PromptViewProps {
-  /** id stabile della card (per il reset dello stato locale quando cambia). */
-  termId: string
-  /** testo iniziale (da un prompt salvato o vuoto per uno nuovo). */
-  initialContent?: string
+  /** testo corrente: vive nello stato di App (col.content), non qui, così lo
+   *  spostamento della card tra le righe non lo perde. */
+  content: string
+  /** aggiorna il testo nello stato di App a ogni battuta. */
+  onChange: (content: string) => void
   /** true se la card è già legata a un prompt salvato nel progetto. */
   saved?: boolean
   /** salva il testo corrente nel progetto (crea o aggiorna il prompt). */
@@ -17,18 +18,16 @@ export interface PromptViewProps {
  * Editor di testo semplice reso in una card come alternativa al terminale.
  * Nessuna formattazione: solo testo libero, con un tasto per copiare tutto e
  * uno per salvare il prompt nel progetto.
+ *
+ * Componente controllato: non tiene il testo in stato locale, perché spostare
+ * la card in un'altra riga la rimonta (cambia il nodo padre nell'albero React)
+ * e lo stato locale andrebbe perso insieme al testo non salvato.
  */
 export default function PromptView(props: PromptViewProps): React.ReactElement {
-  const { termId, initialContent, onSave } = props
-  const [text, setText] = useState(initialContent ?? '')
+  const { content: text, onChange, onSave } = props
   const [copied, setCopied] = useState(false)
   const [justSaved, setJustSaved] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  // Se la card viene riusata per un altro prompt (id diverso), risincronizza.
-  useEffect(() => {
-    setText(initialContent ?? '')
-  }, [termId, initialContent])
 
   useEffect(
     () => () => {
@@ -88,7 +87,7 @@ export default function PromptView(props: PromptViewProps): React.ReactElement {
           si distingue nettamente dal terminale (fondo scuro, monospace). */}
       <textarea
         value={text}
-        onChange={(e) => setText(e.target.value)}
+        onChange={(e) => onChange(e.target.value)}
         spellCheck={false}
         placeholder="Scrivi qui il tuo prompt…"
         style={{

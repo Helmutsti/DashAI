@@ -22,7 +22,9 @@ export interface Column {
   closeOnExit?: boolean
   /** (kind='prompt') id del prompt salvato nel progetto a cui è legata la card */
   promptId?: string
-  /** (kind='prompt') testo iniziale con cui montare l'editor */
+  /** (kind='prompt') testo corrente dell'editor. Vive qui (non nello stato
+   *  locale della vista) così sopravvive ai remount dovuti allo spostamento
+   *  della card tra le righe, anche se non ancora salvato nel progetto. */
   content?: string
   /** card compressa (solo intestazione visibile) */
   collapsed?: boolean

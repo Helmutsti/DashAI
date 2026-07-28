@@ -176,6 +176,17 @@ export default function App(): React.ReactElement {
       0.6
     )
 
+  // Il testo dell'editor vive nello stato delle righe (col.content): così
+  // spostare la card in un'altra riga la rimonta senza perdere ciò che è stato
+  // scritto ma non ancora salvato nel progetto.
+  const setPromptContent = (id: string, content: string): void =>
+    setRows((s) =>
+      s.map((row) => ({
+        ...row,
+        cols: row.cols.map((c) => (c.id === id ? { ...c, content } : c))
+      }))
+    )
+
   // Salva il testo di una card prompt nel progetto: aggiorna quello legato
   // (promptId) o ne crea uno nuovo, legando poi la card al prompt creato.
   const savePrompt = (col: Column, content: string): void => {
@@ -516,6 +527,7 @@ export default function App(): React.ReactElement {
                   onProcessExit={() => removeColById(id)}
                   onToggleCollapse={() => toggleCollapse(id)}
                   onSavePrompt={(content) => savePrompt(col, content)}
+                  onChangePrompt={(content) => setPromptContent(id, content)}
                 />
                 {c < row.cols.length - 1 && (
                   <div
