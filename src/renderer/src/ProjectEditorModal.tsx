@@ -11,6 +11,7 @@ import {
   type ShellOption
 } from './projects'
 import { ICON_NAMES, Icon, type IconName } from './icons'
+import { useOverlayDismiss } from './useOverlayDismiss'
 
 export interface ProjectEditorModalProps {
   project: Project
@@ -23,6 +24,7 @@ export interface ProjectEditorModalProps {
 
 export default function ProjectEditorModal(props: ProjectEditorModalProps): React.ReactElement {
   const [draft, setDraft] = useState<Project>(props.project)
+  const overlayDismiss = useOverlayDismiss(props.onClose)
   // Opzioni shell in base al sistema (Windows: PowerShell/cmd/â€¦; macOS/Linux: zsh/bash/â€¦).
   const shellOptions = shellOptionsFor(window.dashai?.platform ?? 'win32')
   const set = <K extends keyof Project>(k: K, v: Project[K]): void =>
@@ -39,8 +41,8 @@ export default function ProjectEditorModal(props: ProjectEditorModalProps): Reac
     setDraft((d) => ({ ...d, commands: d.commands.filter((c) => c.id !== id) }))
 
   return (
-    <div onClick={props.onClose} style={overlayStyle}>
-      <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" style={dialogStyle}>
+    <div {...overlayDismiss} style={overlayStyle}>
+      <div role="dialog" aria-modal="true" style={dialogStyle}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
           <div style={{ flex: '1 1 auto', fontFamily: 'var(--font-heading)', fontWeight: 600, fontSize: 16 }}>
@@ -51,8 +53,21 @@ export default function ProjectEditorModal(props: ProjectEditorModalProps): Reac
           </div>
         </div>
 
-        {/* Corpo scrollabile */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)', overflowY: 'auto' }}>
+        {/* Corpo scrollabile: il padding in fondo evita che il bordo dell'ultima
+            sezione resti incollato (e tagliato dall'arrotondamento subpixel di
+            scrollHeight) sul bordo inferiore dell'area che scorre. */}
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 'var(--space-5)',
+            overflowY: 'auto',
+            paddingBottom: 'var(--space-3)',
+            // Riserva il gutter della barra su entrambi i lati: il contenuto
+            // resta centrato nel dialog invece di essere spinto a sinistra.
+            scrollbarGutter: 'stable both-edges'
+          }}
+        >
           {/* Sezione: Progetto */}
           <section style={sectionStyle}>
             <div style={sectionTitleStyle}>Progetto</div>
@@ -286,7 +301,9 @@ function IconDropdown({
           <div
             style={{
               position: 'absolute',
-              top: 'calc(100% + 4px)',
+              // sempre verso l'alto: sotto il trigger lo spazio è quasi sempre
+              // insufficiente e il pannello verrebbe tagliato dalla colonna che scorre
+              bottom: 'calc(100% + 4px)',
               left: 0,
               zIndex: 41,
               display: 'grid',
@@ -387,7 +404,8 @@ function ShellDropdown({
           <div
             style={{
               position: 'absolute',
-              top: 'calc(100% + 4px)',
+              // sempre verso l'alto (vedi IconDropdown)
+              bottom: 'calc(100% + 4px)',
               right: 0,
               zIndex: 41,
               minWidth: 200,

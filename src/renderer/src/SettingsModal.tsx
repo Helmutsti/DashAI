@@ -4,6 +4,7 @@ import { DownloadSimple, UploadSimple, X } from '@phosphor-icons/react'
 import { useSettings, type AppSettings, type ThemeChoice } from './SettingsContext'
 import type { Language } from './i18n'
 import { normalizeProjects, type Project } from './projects'
+import { useOverlayDismiss } from './useOverlayDismiss'
 
 export interface SettingsModalProps {
   onClose: () => void
@@ -18,6 +19,7 @@ export interface SettingsModalProps {
 export default function SettingsModal(props: SettingsModalProps): React.ReactElement {
   const { settings, update, t } = useSettings()
   const [msg, setMsg] = useState<string | null>(null)
+  const overlayDismiss = useOverlayDismiss(props.onClose)
 
   // Esporta l'intero DB (db.json): progetti + prompt (dentro i progetti) + impostazioni.
   const doExport = async (): Promise<void> => {
@@ -56,9 +58,8 @@ export default function SettingsModal(props: SettingsModalProps): React.ReactEle
   }
 
   return (
-    <div onClick={props.onClose} style={overlayStyle}>
+    <div {...overlayDismiss} style={overlayStyle}>
       <div
-        onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
         style={dialogStyle}

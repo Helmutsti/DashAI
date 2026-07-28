@@ -17,16 +17,24 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+/* Barre di scorrimento a scomparsa (stile YouTube): il gutter resta sempre
+   riservato — così il contenuto non salta quando la barra compare — ma la barra
+   è trasparente finché il puntatore non entra nell'area che scorre.
+
+   Si usano le proprietà standard e non i pseudo-elementi ::-webkit-scrollbar:
+   con quelli Chromium non invalida il disegno della barra al cambio di :hover
+   su uno scroller interno, e la barra resta visibile dopo il primo passaggio.
+   Nota: le due famiglie sono mutuamente esclusive, se si stilano i pseudo-
+   elementi queste proprietà vengono ignorate. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
 }
-::-webkit-scrollbar-thumb {
-  background: var(--color-neutral-800);
-  border-radius: 8px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
+/* La regola su `*` vince sull'ereditarietà, quindi un'area che scorre resta
+   nascosta anche quando un suo antenato è in hover: si scopre solo la barra
+   dell'elemento effettivamente sotto il puntatore. */
+*:hover {
+  scrollbar-color: var(--color-neutral-700) transparent;
 }
 
 textarea:focus,
