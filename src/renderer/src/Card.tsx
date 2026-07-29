@@ -30,6 +30,8 @@ export interface CardProps {
   isActive: boolean
   /** l'utente ha interagito con questa card: diventa quella attiva */
   onActivate: () => void
+  /** true se le card sono affiancate nella traccia, false se impilate. */
+  byRows: boolean
   dropSide: 'before' | 'after' | null
   onToggleMenu: (e: React.MouseEvent) => void
   onRename: (e: React.MouseEvent) => void
@@ -51,7 +53,8 @@ export interface CardProps {
 }
 
 export default function Card(props: CardProps): React.ReactElement {
-  const { r, c, col, projectLabel, isMenuOpen, isEditing, isDragged, isActive, dropSide } = props
+  const { r, c, col, projectLabel, isMenuOpen, isEditing, isDragged, isActive, byRows, dropSide } =
+    props
   const inputRef = useRef<HTMLInputElement>(null)
   const triggerRef = useRef<HTMLDivElement>(null)
   const [menuPos, setMenuPos] = useState<{ top?: number; bottom?: number; right: number } | null>(null)
@@ -93,9 +96,11 @@ export default function Card(props: CardProps): React.ReactElement {
     : color
       ? `color-mix(in srgb, ${color} 30%, transparent)`
       : 'var(--color-neutral-800)'
+  // La barra di inserimento va sul lato da cui la card entrerà: i bordi
+  // verticali quando le card sono affiancate, quelli orizzontali se impilate.
   const shadows: string[] = []
-  if (dropSide === 'before') shadows.push('inset 4px 0 0 var(--color-accent)')
-  if (dropSide === 'after') shadows.push('inset -4px 0 0 var(--color-accent)')
+  if (dropSide === 'before') shadows.push(byRows ? 'inset 4px 0 0 var(--color-accent)' : 'inset 0 4px 0 var(--color-accent)')
+  if (dropSide === 'after') shadows.push(byRows ? 'inset -4px 0 0 var(--color-accent)' : 'inset 0 -4px 0 var(--color-accent)')
   if (isActive) shadows.push('0 0 0 1px var(--color-accent)')
 
   const isPrompt = col.kind === 'prompt'
@@ -111,10 +116,12 @@ export default function Card(props: CardProps): React.ReactElement {
       onPointerDownCapture={props.onActivate}
       onFocusCapture={props.onActivate}
       style={{
-        flex: `${col.w} 1 0%`,
-        // Compressa: si riduce alla sola intestazione invece di stirarsi
-        // all'altezza delle card sorelle ancora espanse nella stessa riga.
-        alignSelf: col.collapsed ? 'flex-start' : 'stretch',
+        // Compressa: si riduce alla sola intestazione invece di stirarsi come le
+        // card sorelle ancora espanse nella stessa traccia. L'altezza è l'asse
+        // trasversale quando le card sono affiancate (basta `alignSelf`) e quello
+        // principale quando sono impilate (serve rinunciare al `flex-grow`).
+        flex: col.collapsed && !byRows ? '0 0 auto' : `${col.w} 1 0%`,
+        alignSelf: col.collapsed && byRows ? 'flex-start' : 'stretch',
         position: 'relative',
         zIndex: isMenuOpen ? 5 : 1,
         opacity: isDragged ? 0.4 : 1,

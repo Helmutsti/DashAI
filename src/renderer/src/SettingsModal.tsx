@@ -1,7 +1,13 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
-import { DownloadSimple, UploadSimple, X } from '@phosphor-icons/react'
-import { useSettings, type AppSettings, type ThemeChoice } from './SettingsContext'
+import { getVersion } from '@tauri-apps/api/app'
+import { ArrowCounterClockwise, DownloadSimple, UploadSimple, X } from '@phosphor-icons/react'
+import {
+  useSettings,
+  type AppSettings,
+  type GridOrientation,
+  type ThemeChoice
+} from './SettingsContext'
 import type { Language } from './i18n'
 import { normalizeProjects, normalizePrompts, type Project, type Prompt } from './projects'
 import { useOverlayDismiss } from './useOverlayDismiss'
@@ -16,12 +22,21 @@ export interface SettingsModalProps {
   projectsVersion: number
   /** Import (sostituisci tutto): rimpiazza progetti e prompt con quelli importati. */
   onReplaceData: (projects: Project[], prompts: Prompt[]) => void
+  /** Riporta tracce e card a dimensioni uguali nell'orientamento corrente. */
+  onResetLayout: () => void
 }
 
 export default function SettingsModal(props: SettingsModalProps): React.ReactElement {
   const { settings, update, t } = useSettings()
   const [msg, setMsg] = useState<string | null>(null)
   const overlayDismiss = useOverlayDismiss(props.onClose)
+
+  // Versione dal manifest Tauri (tauri.conf.json), la stessa dell'installer.
+  // Fuori dal webview Tauri (`npm run dev:renderer`) la chiamata fallisce: si resta vuoti.
+  const [version, setVersion] = useState('')
+  useEffect(() => {
+    getVersion().then(setVersion, () => setVersion(''))
+  }, [])
 
   // Esporta l'intero DB (db.json): progetti + prompt (elenco globale) + impostazioni.
   const doExport = async (): Promise<void> => {
@@ -129,6 +144,35 @@ export default function SettingsModal(props: SettingsModalProps): React.ReactEle
               />
             </div>
 
+            <div style={fieldStyle}>
+              <span style={labelStyle}>{t('settings.grid')}</span>
+              <Segmented<GridOrientation>
+                value={settings.gridOrientation}
+                options={[
+                  { value: 'rows', label: t('settings.grid.rows') },
+                  { value: 'columns', label: t('settings.grid.columns') }
+                ]}
+                onPick={(v) => update({ gridOrientation: v })}
+              />
+              <span style={hintStyle}>{t('settings.grid.hint')}</span>
+            </div>
+
+            <div style={fieldStyle}>
+              <button
+                type="button"
+                className="btn btn--ghost"
+                onClick={props.onResetLayout}
+                style={{ ...btnBase, alignSelf: 'flex-start', whiteSpace: 'nowrap' }}
+              >
+                <ArrowCounterClockwise
+                  size={14}
+                  style={{ marginRight: 6, verticalAlign: 'middle' }}
+                />
+                {t('settings.layout.reset')}
+              </button>
+              <span style={hintStyle}>{t('settings.layout.reset.hint')}</span>
+            </div>
+
           </section>
 
           {/* Sezione: Progetti e dati */}
@@ -198,6 +242,12 @@ export default function SettingsModal(props: SettingsModalProps): React.ReactEle
             <span style={hintStyle}>{t('shortcut.rightclick')}</span>
             <span style={hintStyle}>{t('settings.shortcuts.hint')}</span>
           </section>
+
+          {version && (
+            <div style={versionStyle}>
+              {t('settings.version')} {version}
+            </div>
+          )}
         </div>
 
         {/* Azioni */}
@@ -322,6 +372,13 @@ const hintStyle: CSSProperties = {
   fontSize: 11.5,
   lineHeight: 1.5,
   color: 'var(--color-neutral-500)'
+}
+/** Riga discreta in fondo al corpo del modale. */
+const versionStyle: CSSProperties = {
+  fontSize: 11,
+  letterSpacing: '0.02em',
+  color: 'var(--color-neutral-500)',
+  textAlign: 'center'
 }
 /** Tasto disegnato: monospazio, bordo tenue, come i "cap" di una tastiera. */
 const kbdStyle: CSSProperties = {

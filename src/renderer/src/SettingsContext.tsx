@@ -3,10 +3,18 @@ import { translate, type Language } from './i18n'
 
 export type ThemeChoice = 'dark' | 'light' | 'system'
 
+/**
+ * Orientamento della griglia: quale asse fa da contenitore.
+ * - 'rows'    → tracce impilate in verticale, card affiancate dentro la traccia (default storico)
+ * - 'columns' → tracce affiancate in orizzontale, card impilate dentro la traccia
+ */
+export type GridOrientation = 'rows' | 'columns'
+
 export interface AppSettings {
   version: number
   language: Language
   theme: ThemeChoice
+  gridOrientation: GridOrientation
 }
 
 export const SETTINGS_VERSION = 1
@@ -14,7 +22,8 @@ export const SETTINGS_VERSION = 1
 export const DEFAULT_SETTINGS: AppSettings = {
   version: SETTINGS_VERSION,
   language: 'it',
-  theme: 'dark'
+  theme: 'dark',
+  gridOrientation: 'rows'
 }
 
 interface SettingsContextValue {
@@ -50,7 +59,8 @@ function normalize(raw: unknown): AppSettings {
   return {
     version: SETTINGS_VERSION,
     language: r.language === 'en' ? 'en' : 'it',
-    theme: r.theme === 'light' || r.theme === 'system' ? r.theme : 'dark'
+    theme: r.theme === 'light' || r.theme === 'system' ? r.theme : 'dark',
+    gridOrientation: r.gridOrientation === 'columns' ? 'columns' : 'rows'
   }
 }
 

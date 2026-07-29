@@ -68,7 +68,15 @@ export default function App(): React.ReactElement {
   // salto e sfuma da sé (con un clic sai già dove sei andato).
   const [highlightId, setHighlightId] = useState<string | null>(null)
   const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const { t } = useSettings()
+  const { t, settings } = useSettings()
+
+  // Orientamento della griglia. Il modello dati non cambia mai: una `Row` è una
+  // *traccia* (`h` = peso lungo l'asse del canvas) e le sue `cols` sono le card
+  // (`w` = peso lungo l'asse interno alla traccia). Questo flag decide solo
+  // quale asse dello schermo corrisponde a quale dei due:
+  //   true  → tracce impilate in verticale, card affiancate (righe di colonne)
+  //   false → tracce affiancate in orizzontale, card impilate (colonne di righe)
+  const byRows = settings.gridOrientation === 'rows'
 
   // Su macOS con titleBarStyle 'hiddenInset' i semafori (chiudi/min/max) stanno
   // in alto a sinistra, sovrapposti al web content: riserviamo un'intera striscia
@@ -283,6 +291,16 @@ export default function App(): React.ReactElement {
     )
   }
 
+  // --- Ripristino layout --------------------------------------------------
+  /**
+   * Riporta tutti i pesi a 1: tracce di pari dimensione lungo l'asse del canvas
+   * e card di pari dimensione dentro ogni traccia. Vale per entrambi gli
+   * orientamenti senza distinzioni, perché sono i due assi a scambiarsi di ruolo,
+   * non i pesi.
+   */
+  const resetLayout = (): void =>
+    setRows((s) => s.map((row) => ({ ...row, h: 1, cols: row.cols.map((c) => ({ ...c, w: 1 })) })))
+
   // --- Comprimi -----------------------------------------------------------
   const toggleCollapse = (id: string): void =>
     setRows((s) =>
@@ -292,16 +310,21 @@ export default function App(): React.ReactElement {
       }))
     )
 
-  // --- Resize (righe/colonne) via listener globali ------------------------
-  const handleMove = useCallback((e: PointerEvent) => {
+  // --- Resize (tracce/card) via listener globali --------------------------
+  const handleMove = useCallback(
+    (e: PointerEvent) => {
     const d = dragRef.current
     if (!d) return
     const sizes = d.startSizes.slice()
     const total = sizes.reduce((a, b) => a + b, 0)
     const idx = d.index
 
-    const size = d.type === 'row' ? d.rect.height : d.rect.width
-    const origin = d.type === 'row' ? e.clientY : e.clientX
+    // Le tracce si ridimensionano lungo l'asse del canvas, le card lungo l'asse
+    // interno alla traccia: quale dei due sia quello verticale dipende
+    // dall'orientamento scelto.
+    const vertical = d.type === 'row' ? byRows : !byRows
+    const size = vertical ? d.rect.height : d.rect.width
+    const origin = vertical ? e.clientY : e.clientX
     const trackPx = (size - (sizes.length - 1) * HANDLE) / total
     const deltaFr = (origin - d.start) / trackPx
 
@@ -330,7 +353,9 @@ export default function App(): React.ReactElement {
         )
       )
     }
-  }, [])
+    },
+    [byRows]
+  )
 
   useEffect(() => {
     const onMove = (e: PointerEvent): void => handleMove(e)
@@ -352,7 +377,13 @@ export default function App(): React.ReactElement {
     e.preventDefault()
     const rect = outerRef.current?.getBoundingClientRect()
     if (!rect) return
-    dragRef.current = { type: 'row', index, rect, start: e.clientY, startSizes: rows.map((r) => r.h) }
+    dragRef.current = {
+      type: 'row',
+      index,
+      rect,
+      start: byRows ? e.clientY : e.clientX,
+      startSizes: rows.map((r) => r.h)
+    }
   }
   const startDragCol = (rowIndex: number, index: number, e: React.PointerEvent): void => {
     e.preventDefault()
@@ -363,7 +394,7 @@ export default function App(): React.ReactElement {
       rowIndex,
       index,
       rect: parent.getBoundingClientRect(),
-      start: e.clientX,
+      start: byRows ? e.clientX : e.clientY,
       startSizes: rows[rowIndex].cols.map((c) => c.w)
     }
   }
@@ -445,7 +476,9 @@ export default function App(): React.ReactElement {
         focusCard(cardOrder[next].id)
       }
 
-      // ←/→ scorrono la riga, ↑/↓ cambiano riga tenendo la colonna più vicina.
+      // Le frecce lungo l'asse interno scorrono la traccia, le altre cambiano
+      // traccia mantenendo la posizione più vicina. Con le righe l'asse interno
+      // è ←/→, con le colonne è ↑/↓.
       // Nessun wrap: sui bordi della griglia il fuoco resta dov'è.
       const move = (dir: 'left' | 'right' | 'up' | 'down'): void => {
         const pos = cardOrder.find((x) => x.id === activeId)
@@ -453,11 +486,13 @@ export default function App(): React.ReactElement {
           step(1)
           return
         }
-        if (dir === 'left' || dir === 'right') {
-          focusCard(rows[pos.r]?.cols[pos.c + (dir === 'left' ? -1 : 1)]?.id)
+        const horizontal = dir === 'left' || dir === 'right'
+        const back = dir === 'left' || dir === 'up'
+        if (horizontal === byRows) {
+          focusCard(rows[pos.r]?.cols[pos.c + (back ? -1 : 1)]?.id)
           return
         }
-        const row = rows[pos.r + (dir === 'up' ? -1 : 1)]
+        const row = rows[pos.r + (back ? -1 : 1)]
         if (row) focusCard(row.cols[Math.min(pos.c, row.cols.length - 1)]?.id)
       }
 
@@ -510,7 +545,7 @@ export default function App(): React.ReactElement {
     window.addEventListener('keydown', onKeyDown, true)
     return () => window.removeEventListener('keydown', onKeyDown, true)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- helper ricreati a ogni render
-  }, [rows, activeId, editing, editingProject, settingsOpen])
+  }, [rows, activeId, editing, editingProject, settingsOpen, byRows])
 
   useEffect(
     () => () => {
@@ -552,8 +587,13 @@ export default function App(): React.ReactElement {
   const overCard = (r: number, c: number, e: React.DragEvent): void => {
     e.preventDefault()
     if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
+    // Metà della card lungo l'asse interno alla traccia: orizzontale se le card
+    // sono affiancate, verticale se impilate.
     const rect = e.currentTarget.getBoundingClientRect()
-    const side = e.clientX - rect.left < rect.width / 2 ? 'before' : 'after'
+    const before = byRows
+      ? e.clientX - rect.left < rect.width / 2
+      : e.clientY - rect.top < rect.height / 2
+    const side = before ? 'before' : 'after'
     setDropZone(null)
     setDropTarget((dt) => (dt && dt.r === r && dt.c === c && dt.side === side ? dt : { r, c, side }))
   }
@@ -623,9 +663,14 @@ export default function App(): React.ReactElement {
   const dragging = !!dragCard
 
   const renderRow = (row: Row, r: number): React.ReactElement => {
-    // Se tutte le card della riga sono compresse, la riga si accorcia alle sole
-    // intestazioni (riga di "card parcheggiate").
-    const allCollapsed = row.cols.length > 0 && row.cols.every((c) => c.collapsed)
+    // Se tutte le card della traccia sono compresse, la traccia si accorcia alle
+    // sole intestazioni (traccia di "card parcheggiate").
+    // Vale solo per le righe: lì l'asse del canvas è l'altezza, e rinunciarvi
+    // lascia le intestazioni leggibili. Fra le colonne l'asse è la larghezza, e
+    // stringerla al contenuto renderebbe i titoli illeggibili: le card compresse
+    // si accorciano già da sole in verticale, lasciando la colonna vuota sotto.
+    const allCollapsed =
+      byRows && row.cols.length > 0 && row.cols.every((c) => c.collapsed)
     // Normalizza i pesi SOLO per il render (non lo stato): dopo che una card
     // viene chiusa/estratta/spostata, la somma dei col.w residui puÃ² scendere
     // sotto 1. CSS flexbox non distribuisce lo spazio libero oltre alla somma
@@ -640,13 +685,30 @@ export default function App(): React.ReactElement {
         flex: allCollapsed ? '0 0 auto' : `${row.h} 1 0%`,
         display: 'flex',
         flexDirection: 'column',
+        minWidth: 0,
         minHeight: 0
       }}
     >
-      <div style={{ flex: allCollapsed ? '0 0 auto' : '1 1 0%', display: 'flex', minHeight: 0 }}>
-        {/* grid: sempre a piena larghezza (flex:1) cosÃ¬ le card compresse NON
-            perdono la dimensione orizzontale */}
-        <div style={{ flex: 1, display: 'flex', minWidth: 0, position: 'relative' }}>
+      <div
+        style={{
+          flex: allCollapsed ? '0 0 auto' : '1 1 0%',
+          display: 'flex',
+          minWidth: 0,
+          minHeight: 0
+        }}
+      >
+        {/* grid: occupa sempre tutta la traccia (flex:1) cosÃ¬ le card compresse
+            NON perdono la dimensione sull'asse trasversale */}
+        <div
+          style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: byRows ? 'row' : 'column',
+            minWidth: 0,
+            minHeight: 0,
+            position: 'relative'
+          }}
+        >
           {row.cols.map((col, c) => {
             const id = col.id
             const dropSide =
@@ -662,6 +724,7 @@ export default function App(): React.ReactElement {
                   isEditing={editing === id}
                   isDragged={!!dragCard && dragCard.r === r && dragCard.c === c}
                   isActive={highlightId === id}
+                  byRows={byRows}
                   onActivate={() => setActiveId(id)}
                   dropSide={dropSide}
                   onToggleMenu={(e) => {
@@ -698,7 +761,7 @@ export default function App(): React.ReactElement {
                     style={{
                       flex: `0 0 ${HANDLE}px`,
                       alignSelf: 'stretch',
-                      cursor: 'col-resize',
+                      cursor: byRows ? 'col-resize' : 'row-resize',
                       position: 'relative',
                       zIndex: 2
                     }}
@@ -720,8 +783,11 @@ export default function App(): React.ReactElement {
       onDrop={(e) => dropOnZone(idx, e)}
       style={{
         flex: '0 0 auto',
-        height: 44,
-        margin: 'var(--space-1) 0',
+        // Striscia trasversale al canvas: bassa e larga fra le righe, stretta e
+        // alta fra le colonne.
+        ...(byRows
+          ? { height: 44, margin: 'var(--space-1) 0' }
+          : { width: 44, alignSelf: 'stretch', margin: '0 var(--space-1)' }),
         borderRadius: 'var(--radius-md)',
         border: `1.5px dashed ${dropZone === idx ? 'var(--color-accent)' : 'var(--color-divider)'}`,
         background:
@@ -745,7 +811,12 @@ export default function App(): React.ReactElement {
           <div
             key={`rh-${i}`}
             onPointerDown={(e) => startDragRow(i, e)}
-            style={{ flex: `0 0 ${HANDLE}px`, width: '100%', height: HANDLE, cursor: 'row-resize' }}
+            style={{
+              flex: `0 0 ${HANDLE}px`,
+              ...(byRows
+                ? { width: '100%', height: HANDLE, cursor: 'row-resize' }
+                : { width: HANDLE, height: '100%', cursor: 'col-resize' })
+            }}
           />
         )
       }
@@ -1158,7 +1229,7 @@ export default function App(): React.ReactElement {
           height: '100%',
           overflow: 'auto',
           display: 'flex',
-          flexDirection: 'column',
+          flexDirection: byRows ? 'column' : 'row',
           padding: 0,
           paddingLeft: collapsed ? 'calc(36px + var(--space-4) + var(--space-3))' : 0
         }}
@@ -1181,6 +1252,7 @@ export default function App(): React.ReactElement {
           projects={projects}
           prompts={prompts}
           projectsVersion={PROJECTS_VERSION}
+          onResetLayout={resetLayout}
           onReplaceData={(nextProjects, nextPrompts) => persist(nextProjects, nextPrompts)}
           onClose={() => setSettingsOpen(false)}
         />

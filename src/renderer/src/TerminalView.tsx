@@ -2,7 +2,7 @@
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
-import { readClipboard, writeClipboard } from './clipboard'
+import { writeClipboard } from './clipboard'
 import type { ShellKey } from './projects'
 
 /** Dimensione font terminali, fissa (non piu configurabile). */
@@ -179,21 +179,16 @@ export default function TerminalView(props: TerminalViewProps): React.ReactEleme
   }, [termId])
 
   // Tasto destro come in Windows Terminal: con del testo selezionato copia (e
-  // deseleziona), altrimenti incolla nella shell. Nessun menu: il menu nativo
-  // del webview è bloccato e qui l'azione utile è una sola.
+  // deseleziona). Senza selezione non facciamo nulla e lasciamo incollare il
+  // webview: l'incolla nativo parte comunque su click destro, e affiancargli il
+  // nostro finiva per inserire il testo due volte.
   const onContextMenu = (e: React.MouseEvent): void => {
-    e.preventDefault()
     const term = termRef.current
     if (!term) return
     const selection = term.getSelection()
-    if (selection) {
-      void writeClipboard(selection).then(() => term.clearSelection())
-      return
-    }
-    void readClipboard().then((text) => {
-      if (text) window.dashai.terminal.input(termId, text)
-      term.focus()
-    })
+    if (!selection) return
+    e.preventDefault()
+    void writeClipboard(selection).then(() => term.clearSelection())
   }
 
   return (
