@@ -31,7 +31,6 @@ const it: Dict = {
   'shortcut.move': 'Sposta il fuoco sulla griglia',
   'shortcut.close': 'Chiudi la scheda attiva',
   'shortcut.sidebar': 'Mostra/nascondi la barra laterale',
-  'shortcut.rightclick': 'Tasto destro: incolla nel terminale (copia se c’è una selezione)',
   'settings.shortcuts.hint':
     'La scheda attiva è quella col bordo evidenziato. Ctrl+W non è usato: nella shell serve a cancellare la parola precedente.',
   'settings.version': 'Versione',
@@ -83,7 +82,6 @@ const en: Dict = {
   'shortcut.move': 'Move focus across the grid',
   'shortcut.close': 'Close the active card',
   'shortcut.sidebar': 'Show/hide the sidebar',
-  'shortcut.rightclick': 'Right click: paste into the terminal (copy if there is a selection)',
   'settings.shortcuts.hint':
     'The active card is the one with the highlighted border. Ctrl+W is left alone: in the shell it deletes the previous word.',
   'settings.version': 'Version',

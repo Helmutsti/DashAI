@@ -239,7 +239,6 @@ export default function SettingsModal(props: SettingsModalProps): React.ReactEle
                 </div>
               ))}
             </div>
-            <span style={hintStyle}>{t('shortcut.rightclick')}</span>
             <span style={hintStyle}>{t('settings.shortcuts.hint')}</span>
           </section>
 

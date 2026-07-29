@@ -2,7 +2,6 @@
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
-import { writeClipboard } from './clipboard'
 import type { ShellKey } from './projects'
 
 /** Dimensione font terminali, fissa (non piu configurabile). */
@@ -178,24 +177,12 @@ export default function TerminalView(props: TerminalViewProps): React.ReactEleme
     }
   }, [termId])
 
-  // Tasto destro come in Windows Terminal: con del testo selezionato copia (e
-  // deseleziona). Senza selezione non facciamo nulla e lasciamo incollare il
-  // webview: l'incolla nativo parte comunque su click destro, e affiancargli il
-  // nostro finiva per inserire il testo due volte.
-  const onContextMenu = (e: React.MouseEvent): void => {
-    const term = termRef.current
-    if (!term) return
-    const selection = term.getSelection()
-    if (!selection) return
-    e.preventDefault()
-    void writeClipboard(selection).then(() => term.clearSelection())
-  }
-
   return (
     // Box del terminale: stroke arrotondato + padding interno cosÃ¬ il testo
     // non tocca il bordo. Lo sfondo scuro pieno stacca dal colore della card.
+    // Sul tasto destro non facciamo nulla: copia e incolla restano quelli
+    // nativi del webview.
     <div
-      onContextMenu={onContextMenu}
       style={{
         flex: '1 1 auto',
         minHeight: 0,

@@ -554,16 +554,6 @@ export default function App(): React.ReactElement {
     []
   )
 
-  // Il menu contestuale nativo del webview mostrerebbe voci da browser
-  // (Ricarica, Ispeziona): lo si blocca in tutta l'app. Le superfici che hanno
-  // un comportamento proprio — terminale e editor di prompt — gestiscono
-  // `contextmenu` sui propri elementi, che viene eseguito prima di questo.
-  useEffect(() => {
-    const block = (e: MouseEvent): void => e.preventDefault()
-    document.addEventListener('contextmenu', block)
-    return () => document.removeEventListener('contextmenu', block)
-  }, [])
-
   // --- Drag & drop schede -------------------------------------------------
   const startCardDrag = (r: number, c: number, e: React.DragEvent): void => {
     if (e.dataTransfer) {
