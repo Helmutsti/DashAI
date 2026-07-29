@@ -4,10 +4,10 @@
   "version": "0.5.2",
   "identifier": "com.helmutsti.dashai",
   "build": {
-    "frontendDist": "../dist",
+    "frontendDist": "../output/dist",
     "devUrl": "http://localhost:5173",
-    "beforeDevCommand": "npm run dev:renderer",
-    "beforeBuildCommand": "npm run build:renderer"
+    "beforeDevCommand": "npx vite",
+    "beforeBuildCommand": "npm run build:UI"
   },
   "app": {
     "windows": [

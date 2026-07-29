@@ -10,12 +10,8 @@
   "type": "module",
   "scripts": {
     "dev": "tauri dev",
-    "build": "tauri build",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
-    "bump": "node scripts/bump-version.mjs",
-    "dev:renderer": "vite",
-    "build:renderer": "vite build",
-    "tauri": "tauri"
+    "build": "node build.mjs",
+    "build:UI": "vite build"
   },
   "dependencies": {
     "@fontsource/inter": "^5.1.0",

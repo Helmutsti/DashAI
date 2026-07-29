@@ -18,8 +18,8 @@ greyscale scuro, layout dal design **"Layout Grid App"**.
 ```bash
 npm install       # dipendenze (dentro questa cartella)
 npm run dev       # sviluppo con hot-reload (tauri dev)
-npm run build     # bundle di produzione in src-tauri/target/release/bundle/
-npm run typecheck # controllo tipi TypeScript
+npm run build     # installer di produzione in output/platform/<os>/
+npm run build:UI  # solo la UI compilata da Vite, in output/dist/
 ```
 
 ### Il "server" in `npm run dev`
@@ -28,13 +28,13 @@ npm run typecheck # controllo tipi TypeScript
 oppure la porta libera successiva). **Non Ã¨ un server dell'app**: serve solo la UI
 React del processo *renderer* con hot-reload, e la finestra Tauri la carica
 internamente da quell'indirizzo locale. In produzione (`npm run build`) non c'Ã¨
-alcun server: la webview di sistema carica i file statici da `dist/`.
+alcun server: la webview di sistema carica i file statici da `output/dist/`.
 
 ### Build degli eseguibili (tauri bundler)
 
 ```bash
 npm run build   # dmg (macOS) / nsis (Windows) / appimage (Linux) in base
-                # alla piattaforma di build â†’ src-tauri/target/release/bundle/
+                # alla piattaforma di build â†’ output/platform/<os>/
 ```
 
 > Ogni target si compila solo sulla piattaforma nativa corrispondente (limite
@@ -43,24 +43,28 @@ npm run build   # dmg (macOS) / nsis (Windows) / appimage (Linux) in base
 ## Struttura
 
 ```
-src-tauri/
+BE/                    backend Rust + configurazione Tauri
   src/
     pty.rs             gestore shell portable-pty + comandi Tauri
     stores.rs          persistenza progetti/impostazioni (JSON su disco)
-    windows.rs          finestre estratte (detach/redock) + fullscreen
+    config_dir.rs      dove vivono projects.json / settings.json
+    windows.rs         rilevamento fullscreen (evento dashai:fullscreen)
     os_integration.rs  dialog nativi + apertura file manager
   tauri.conf.json
-src/
-  renderer/
-    index.html
-    src/
-      main.tsx          entry React + import font/CSS/xterm
-      dashai-bridge.ts  bridge renderer<->backend (window.dashai.terminal)
-      App.tsx           stato + canvas righe/schede + resize + drag&drop
-      Card.tsx          card (header/menu/rename/drag) + terminale
-      TerminalView.tsx  xterm.js + FitAddon collegato alla pty
-      types.ts          tipi Row/Column (id stabile) + palette
-      styles/           tokens.css (design token) + app.css (reset/hover)
+UI/                    renderer React (nessun annidamento: i file stanno qui)
+  index.html
+  main.tsx             entry React + import font/CSS/xterm
+  dashai-bridge.ts     bridge renderer<->backend (window.dashai.terminal)
+  App.tsx              stato + canvas righe/schede + resize + drag&drop
+  Card.tsx             card (header/menu/rename/drag) + terminale
+  TerminalView.tsx     xterm.js + FitAddon collegato alla pty
+  types.ts             tipi Row/Column (id stabile) + palette
+  styles/              tokens.css (design token) + app.css (reset/hover)
+build.mjs              `npm run build`: compila e raccoglie gli installer
+output/                tutto il prodotto della compilazione (ignorato da git)
+  dist/                UI compilata da Vite = frontendDist di Tauri
+  build/               intermedi Rust (target-dir, vedi BE/.cargo/config.toml)
+  platform/win|mac/    installer finali per piattaforma
 ```
 
 ## Terminali (architettura)

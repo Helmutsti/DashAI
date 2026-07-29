@@ -1,0 +1,7 @@
+# Tutti gli intermedi di compilazione Rust fuori da BE/, sotto output/build:
+# la cartella `output` raccoglie ogni artefatto prodotto dal progetto
+# (output/dist per la UI, output/platform/<os> per gli installer).
+#
+# Il percorso e' relativo alla cartella che contiene questa `.cargo/`, cioe' BE/.
+[build]
+target-dir = "../output/build"
