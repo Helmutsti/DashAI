@@ -41,18 +41,42 @@ export function shellOptionsFor(platform: string): ShellOption[] {
   return [...native, { key: 'custom', label: 'Personalizzata (percorso)…' }]
 }
 
-/** ---- Palette colori progetto ---- */
+/** ---- Palette colori progetto ----
+ *
+ * Un progetto porta un solo hex, usato sia come testo sull'header della card sia
+ * come tinta al 14%/26% in sidebar, e lo stesso valore deve reggere su entrambe
+ * le superfici del tema (#191919 e #f4f4f5): questo obbliga la lightness a stare
+ * in mezzo (OKLCH L 0.54-0.66), dove ogni colore tiene >= 3:1 su tutti e due i
+ * fondi. E' anche il motivo per cui non c'e' un giallo: a L media sRGB non ha
+ * croma in quella regione e uscirebbe un oliva spento.
+ *
+ * Sono sei tinte e non otto perche' otto non possono essere mutuamente distinte:
+ * misurate su TUTTE le coppie (due progetti qualsiasi possono comparire
+ * affiancati in sidebar) nessun insieme di otto supera le soglie, ne' a vista
+ * normale ne' in dicromatismo — la vecchia palette aveva viola e blu a ΔE 8.3,
+ * sotto la soglia di 15, cioe' indistinguibili anche senza daltonismo.
+ *
+ * Verificata con lo script six-checks su tutte le 15 coppie, in entrambi i modi:
+ * ΔE peggiore 15.3 a vista normale (soglia 15) e 8.2 in protanopia / 8.1 in
+ * tritanopia (target 8, non solo il minimo 6). Se aggiungi o cambi uno slot,
+ * rimisura: la separazione non e' verificabile a occhio.
+ *
+ * Il primo slot e' il grigio "nessun accento". A #cccccc stava a 1.46:1 sul
+ * tema chiaro, praticamente invisibile; #8a8a8a tiene 5.09:1 su scuro e 3.14:1
+ * su chiaro.
+ */
 export const TOP_COLORS = [
-  '#cccccc',
-  '#5bbfa5',
-  '#e0a35b',
-  '#e0666e',
-  '#6ea8e0',
-  '#9b8ee0',
-  '#e0c15b',
-  '#5bc4c9',
-  '#7fc98a'
+  '#8a8a8a', // neutro
+  '#c42942', // rosso
+  '#e66700', // arancio
+  '#009e77', // verde
+  '#1069da', // blu
+  '#9b75f9', // indaco
+  '#a738a2' // magenta
 ]
+
+/** Colore di un progetto appena creato. */
+export const DEFAULT_PROJECT_COLOR = '#009e77'
 
 /** ---- Modello ---- */
 export interface QuickCommand {
@@ -118,7 +142,7 @@ export function makeProject(partial?: Partial<Project>): Project {
     id: newProjectId(),
     label: 'Nuovo progetto',
     icon: 'Folder',
-    color: TOP_COLORS[1],
+    color: DEFAULT_PROJECT_COLOR,
     cwd: '',
     commands: [],
     ...partial
