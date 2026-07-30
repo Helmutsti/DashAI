@@ -158,7 +158,7 @@ export default function Card(props: CardProps): React.ReactElement {
           alignItems: 'center',
           gap: 'var(--space-3)',
           width: '100%',
-          cursor: 'grab'
+          cursor: isDragged ? 'grabbing' : 'grab'
         }}
       >
         <div
@@ -222,7 +222,10 @@ export default function Card(props: CardProps): React.ReactElement {
               fontFamily: 'var(--font-heading)',
               fontSize: 11,
               fontWeight: 600,
-              cursor: 'text'
+              // il contenitore occupa tutto lo spazio libero dell'header: qui
+              // vale il cursore di trascinamento, il cursore di testo compare
+              // solo sopra le stringhe vere (vedi span sotto)
+              cursor: 'inherit'
             }}
           >
             {projectLabel && (
@@ -238,24 +241,31 @@ export default function Card(props: CardProps): React.ReactElement {
                     whiteSpace: 'nowrap',
                     letterSpacing: '0.08em',
                     textTransform: 'uppercase',
-                    color: color || 'var(--color-accent)'
+                    color: color || 'var(--color-accent)',
+                    cursor: 'text'
                   }}
                 >
                   {projectLabel}
                 </span>
-                <span style={{ flex: '0 0 auto', color: 'var(--color-neutral-500)' }}>·</span>
+                <span style={{ flex: '0 0 auto', color: 'var(--color-neutral-500)', cursor: 'text' }}>
+                  ·
+                </span>
               </>
             )}
             <span
               style={{
-                flex: '1 1 auto',
+                // non `1 1 auto`: lo span si fermerebbe al bordo dell'header
+                // anche con titoli corti, portando il cursore di testo su
+                // spazio vuoto che invece serve al drag
+                flex: '0 1 auto',
                 minWidth: 0,
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
                 color: projectLabel ? 'var(--color-text)' : color || 'var(--color-accent)',
                 letterSpacing: projectLabel ? undefined : '0.08em',
-                textTransform: projectLabel ? undefined : 'uppercase'
+                textTransform: projectLabel ? undefined : 'uppercase',
+                cursor: 'text'
               }}
             >
               {title}
