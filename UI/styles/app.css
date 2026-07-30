@@ -44,9 +44,17 @@ input:focus {
 
 /* --- Hover states --- */
 .collapse-btn:hover,
-.reopen-btn:hover,
 .send-btn:hover {
   border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+/* Linguetta flottante per riaprire la barra laterale */
+.reopen-btn {
+  transition: color 120ms ease;
+}
+
+.reopen-btn:hover {
   color: var(--color-accent);
 }
 

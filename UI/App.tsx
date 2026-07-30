@@ -1191,23 +1191,22 @@ export default function App(): React.ReactElement {
           style={{
             position: 'absolute',
             top: `calc(var(--space-4) + ${macTrafficLightInset}px)`,
-            left: 'var(--space-4)',
+            left: 0,
             zIndex: 5,
-            width: 36,
-            height: 36,
-            borderRadius: 'var(--radius-md)',
+            width: 16,
+            height: 44,
+            borderRadius: '0 var(--radius-md) var(--radius-md) 0',
             background: 'var(--color-surface)',
             boxShadow: 'var(--shadow-sm)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontSize: 16,
             lineHeight: 1,
-            color: 'var(--color-neutral-300)',
+            color: 'var(--color-neutral-400)',
             cursor: 'pointer'
           }}
         >
-          <CaretDoubleRight size={16} />
+          <CaretDoubleRight size={11} />
         </div>
       )}
 
@@ -1221,7 +1220,9 @@ export default function App(): React.ReactElement {
           display: 'flex',
           flexDirection: byRows ? 'column' : 'row',
           padding: 0,
-          paddingLeft: collapsed ? 'calc(36px + var(--space-4) + var(--space-3))' : 0
+          // A sidebar chiusa: scosta le card oltre la linguetta (16px, che sborda
+          // dal gutter di var(--space-4)) più un po' di respiro.
+          paddingLeft: collapsed ? 'calc(16px - var(--space-4) + var(--space-3))' : 0
         }}
       >
         {canvasChildren}
