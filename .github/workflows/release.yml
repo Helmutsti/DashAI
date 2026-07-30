@@ -1,0 +1,148 @@
+name: Release
+
+# Da un push su main a una Release con gli installer: una sola pipeline in due
+# fasi. `bump` avanza la patch e crea il tag, `build` compila su runner nativi
+# Windows e macOS e allega gli installer alla Release.
+#
+# Perche' un unico workflow e non due (bump.yml + build.yml collegati dal tag):
+# GitHub non rilancia i workflow per eventi generati con GITHUB_TOKEN, quindi il
+# tag creato qui non farebbe scattare un `push: tags` di un altro workflow. Con
+# `needs:` la dipendenza e' interna al workflow e non passa da un evento.
+#
+# macOS si compila SOLO su un runner macOS (limite Apple): e' il motivo per cui
+# questa pipeline esiste invece di un build locale.
+#
+#   Windows -> DashAI_<versione>_x64-setup.exe (NSIS) + _x64-portable.exe
+#   macOS   -> DashAI_<versione>_aarch64.dmg (Apple Silicon) e _x64.dmg (Intel)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      livello:
+        description: 'Parte di versione da avanzare'
+        type: choice
+        default: patch
+        options: [patch, minor, major]
+
+# Due push ravvicinati si contenderebbero lo stesso `git push origin main`: il
+# secondo aspetta invece di fallire su un non-fast-forward.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    # Cintura oltre alle bretelle: anche se GITHUB_TOKEN non ritriggera i
+    # workflow, saltare esplicitamente il nostro commit di bump rende il
+    # non-loop una proprieta' leggibile invece di un dettaglio della piattaforma.
+    if: ${{ github.event_name == 'workflow_dispatch' || !startsWith(github.event.head_commit.message, 'Porta la versione a') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # commit e tag
+    outputs:
+      version: ${{ steps.bump.outputs.version }}
+      tag: v${{ steps.bump.outputs.version }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Avanza la versione
+        id: bump
+        run: |
+          node scripts/bump-version.mjs "${{ inputs.livello || 'patch' }}"
+          echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Committa e tagga
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Porta la versione a ${{ steps.bump.outputs.version }}"
+          git tag "v${{ steps.bump.outputs.version }}"
+          git push origin HEAD:main
+          git push origin "v${{ steps.bump.outputs.version }}"
+
+  build:
+    needs: bump
+    permissions:
+      contents: write # creare la Release e caricare gli asset
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'macos-latest' # Mac con Apple Silicon (M1+)
+            args: '--target aarch64-apple-darwin'
+          - platform: 'macos-latest' # Mac Intel
+            args: '--target x86_64-apple-darwin'
+          - platform: 'windows-latest' # Windows x64
+            args: ''
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      # Il tag, non main: main potrebbe essere avanzato nel frattempo, mentre il
+      # tag punta esattamente al commit di cui stiamo pubblicando la versione.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.bump.outputs.tag }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      # `BE/.cargo/config.toml` sposta il target-dir in output/build: la cache
+      # deve guardare la' e non in BE/target, altrimenti non trova mai nulla.
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './BE -> ../output/build'
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      # tauri-action chiama direttamente `tauri build` e raccoglie i bundle da
+      # solo: build.mjs (che copia gli installer in output/platform/<os>) serve
+      # ai build locali, qui la consegna sono gli asset della Release.
+      - name: Build and release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # macOS non firmato: senza un Apple Developer ID il .dmg funziona ma
+          # mostra l'avviso di Gatekeeper. Aggiungi i secret di firma qui quando
+          # avrai un certificato (APPLE_CERTIFICATE, APPLE_SIGNING_IDENTITY, ...).
+        with:
+          tagName: ${{ needs.bump.outputs.tag }}
+          releaseName: 'DashAI __VERSION__'
+          releaseBody: 'Scarica l''installer per la tua piattaforma dagli asset qui sotto.'
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}
+
+      # Tauri per Windows produce solo l'installer NSIS. Qui aggiungiamo anche
+      # l'eseguibile "portable" (l'exe grezzo da ~11 MB) tra gli asset della
+      # release. Nota: la portable richiede il runtime WebView2 gia' presente
+      # sul sistema (di serie su Windows 11); l'installer NSIS invece lo gestisce.
+      - name: Upload Windows portable exe
+        if: matrix.platform == 'windows-latest'
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.bump.outputs.tag }}
+          VERSION: ${{ needs.bump.outputs.version }}
+        run: |
+          cp "output/build/release/dashai.exe" "DashAI_${VERSION}_x64-portable.exe"
+          gh release upload "$TAG" "DashAI_${VERSION}_x64-portable.exe" --clobber
