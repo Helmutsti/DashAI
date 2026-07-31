@@ -13,8 +13,13 @@ import './styles/app.css'
 import App from './App'
 import { SettingsProvider } from './SettingsContext'
 import { createDashaiBridge } from './dashai-bridge'
+import { createBrowserBridge } from './dashai-bridge.browser'
 
-window.dashai = createDashaiBridge()
+// Fuori dal webview Tauri (es. anteprima in Chrome durante lo sviluppo) non
+// esiste `__TAURI_INTERNALS__`: si usa un bridge di scorta in memoria così la
+// UI resta provabile senza compilare/avviare il backend nativo.
+const isTauri = '__TAURI_INTERNALS__' in window
+window.dashai = isTauri ? createDashaiBridge() : createBrowserBridge()
 
 const container = document.getElementById('root')
 if (!container) throw new Error('#root non trovato')

@@ -1,3 +1,6 @@
 # Dipendenze
 node_modules/
 output/
+
+# Artefatti delle sessioni di test con Playwright MCP
+.playwright-mcp/

@@ -116,6 +116,8 @@ export interface Project {
   cwd: string
   /** terminali lanciabili (shell pulita, comandi, avvii AI: tutti uguali). */
   commands: QuickCommand[]
+  /** posizione nell'elenco della sidebar (riordino manuale) */
+  order: number
 }
 
 export interface ProjectsFile {
@@ -145,6 +147,7 @@ export function makeProject(partial?: Partial<Project>): Project {
     color: DEFAULT_PROJECT_COLOR,
     cwd: '',
     commands: [],
+    order: 0,
     ...partial
   }
 }
@@ -175,16 +178,22 @@ export function makePrompt(partial?: Partial<Prompt>): Prompt {
  * array e scarta i `prompts` dei file in versione 1, quando i prompt vivevano
  * dentro il progetto. Il campo va rimosso e non solo ignorato, altrimenti
  * resterebbe a sporcare il file a ogni salvataggio successivo.
+ *
+ * I file precedenti al riordino manuale non hanno `order`: si usa la posizione
+ * nell'array come valore di partenza, così l'ordine visto finora non cambia.
  */
 export function normalizeProjects(arr: unknown): Project[] {
   if (!Array.isArray(arr)) return []
-  return arr.map((raw) => {
-    const { prompts: _legacy, ...p } = raw as Partial<Project> & { prompts?: unknown }
-    return {
-      ...(p as Project),
-      commands: Array.isArray(p.commands) ? p.commands : []
-    }
-  })
+  return arr
+    .map((raw, i) => {
+      const { prompts: _legacy, ...p } = raw as Partial<Project> & { prompts?: unknown }
+      return {
+        ...(p as Project),
+        commands: Array.isArray(p.commands) ? p.commands : [],
+        order: typeof p.order === 'number' ? p.order : i
+      }
+    })
+    .sort((a, b) => a.order - b.order)
 }
 
 /** Normalizza l'elenco globale dei prompt letto da disco/import. */
@@ -203,7 +212,7 @@ export function normalizePrompts(arr: unknown): Prompt[] {
 export function seedProjects(): ProjectsFile {
   return {
     version: PROJECTS_VERSION,
-    projects: [makeProject({ label: 'Nome App', icon: 'Folder' })],
+    projects: [makeProject({ label: 'Nome App', icon: 'Folder', order: 0 })],
     prompts: []
   }
 }

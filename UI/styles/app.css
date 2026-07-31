@@ -110,3 +110,34 @@ option {
   color: var(--color-text);
   background: var(--color-bg);
 }
+
+/* --- Riordino progetti (stile home iOS) --- */
+.reorder-toggle-btn.active {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+}
+
+/* Ampiezza volutamente minima: le righe della sidebar sono larghe (280px), e
+   una rotazione anche solo di qualche grado sposta i bordi di parecchi pixel,
+   facendo sembrare le righe adiacenti "pizzicate" fra loro. Anche la durata è
+   più lenta di una tipica wiggle iOS (pensata per icone piccole) per lo stesso
+   motivo: qui deve leggersi come un respiro, non come uno scatto. */
+@keyframes reorder-wiggle {
+  0%,
+  100% {
+    transform: rotate(-0.5deg);
+  }
+  50% {
+    transform: rotate(0.5deg);
+  }
+}
+.reorder-wiggle {
+  animation: reorder-wiggle 640ms ease-in-out infinite;
+  transform-origin: center;
+}
+/* Sfasa metà delle righe: come sull'iPhone, non oscillano tutte all'unisono. */
+.reorder-wiggle--alt {
+  animation-direction: alternate-reverse;
+  animation-delay: -320ms;
+}

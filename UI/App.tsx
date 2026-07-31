@@ -1,9 +1,12 @@
-﻿import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
+﻿import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
+  ArrowsDownUp,
   CaretDoubleLeft,
   CaretDoubleRight,
   CaretDown,
   CaretRight,
+  Check,
+  DotsSixVertical,
   Folder,
   Gear,
   PencilSimple,
@@ -57,6 +60,15 @@ export default function App(): React.ReactElement {
   const [editingIsNew, setEditingIsNew] = useState(false)
   const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(new Set())
   const [settingsOpen, setSettingsOpen] = useState(false)
+  // Modalità "riordina progetti" (stile iPhone): le card progetto restano
+  // chiuse e non interagibili, spostabili solo trascinandole. `reorderDragId`
+  // è il progetto attualmente afferrato; `null` quando non si sta trascinando.
+  const [reorderMode, setReorderMode] = useState(false)
+  const [reorderDragId, setReorderDragId] = useState<string | null>(null)
+  const projectTreeRef = useRef<HTMLDivElement>(null)
+  // Posizioni pre-riordino, per l'animazione FLIP che simula lo "spostarsi per
+  // fare spazio" delle icone iOS quando un progetto scavalca gli altri.
+  const prevProjectRectsRef = useRef<Map<string, DOMRect>>(new Map())
   // Card "attiva": bersaglio delle shortcut da tastiera. `focusTick` viene
   // incrementato solo quando *noi* vogliamo spostare il fuoco del DOM (shortcut,
   // apertura, chiusura): un clic si porta già il fuoco da solo e non deve
@@ -101,6 +113,98 @@ export default function App(): React.ReactElement {
   const outerRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<ResizeDrag>(null)
 
+  // --- Riordino progetti (FLIP: "First, Last, Invert, Play") --------------
+  // Ad ogni cambio d'ordine si confronta la posizione precedente di ciascuna
+  // card con quella nuova appena assegnata dal layout, e la si fa "arrivare"
+  // dalla vecchia posizione animando solo un transform: l'effetto è lo stesso
+  // "farsi spazio" delle icone della home di iOS, senza librerie esterne.
+  useLayoutEffect(() => {
+    if (!reorderMode) {
+      prevProjectRectsRef.current.clear()
+      return
+    }
+    const container = projectTreeRef.current
+    if (!container) return
+    const nodes = container.querySelectorAll<HTMLElement>('[data-project-id]')
+    nodes.forEach((node) => {
+      const id = node.dataset.projectId
+      if (!id) return
+      const newRect = node.getBoundingClientRect()
+      const oldRect = prevProjectRectsRef.current.get(id)
+      if (oldRect) {
+        const dx = oldRect.left - newRect.left
+        const dy = oldRect.top - newRect.top
+        if (dx || dy) {
+          node.style.transition = 'none'
+          node.style.transform = `translate(${dx}px, ${dy}px)`
+          requestAnimationFrame(() => {
+            node.style.transition = 'transform 260ms cubic-bezier(0.22, 1, 0.36, 1)'
+            node.style.transform = ''
+          })
+        }
+      }
+      prevProjectRectsRef.current.set(id, newRect)
+    })
+  }, [projects, reorderMode])
+
+  const startProjectDrag = (id: string, e: React.DragEvent): void => {
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = 'move'
+      try {
+        e.dataTransfer.setData('text/plain', id)
+      } catch {
+        /* alcune piattaforme lo vietano in dragstart */
+      }
+      // L'immagine che segue il cursore deve restare la riga "normale": se le
+      // si lascia usare il nodo reale, il browser la fotografa DOPO che React
+      // l'ha già trasformata nel placeholder tratteggiato (quello resta solo
+      // nella lista). Si passa quindi un clone congelato con l'aspetto attuale,
+      // staccato dal flusso e rimosso subito dopo che il fantasma è stato preso.
+      const node = e.currentTarget as HTMLElement
+      const rect = node.getBoundingClientRect()
+      const clone = node.cloneNode(true) as HTMLElement
+      clone.style.position = 'fixed'
+      clone.style.top = '-9999px'
+      clone.style.left = '-9999px'
+      clone.style.width = `${rect.width}px`
+      clone.style.margin = '0'
+      clone.style.pointerEvents = 'none'
+      document.body.appendChild(clone)
+      e.dataTransfer.setDragImage(clone, e.nativeEvent.offsetX, e.nativeEvent.offsetY)
+      setTimeout(() => clone.remove(), 0)
+    }
+    setReorderDragId(id)
+  }
+  // Sposta dal vivo il progetto afferrato sopra quello sorvolato: gli altri si
+  // spostano di conseguenza, ed è proprio quel movimento che l'effetto FLIP
+  // sopra anima. Lo scambio scatta solo quando il cursore supera la metà della
+  // riga sorvolata (e nel verso in cui ci si sta muovendo): senza questa
+  // isteresi, due righe adiacenti si scambiavano avanti e indietro ad ogni
+  // minimo tremore del mouse, con un effetto scattoso e disorientante.
+  const overProjectDrag = (id: string, e: React.DragEvent): void => {
+    e.preventDefault()
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
+    if (!reorderDragId || reorderDragId === id) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    const pastMidpoint = e.clientY - rect.top > rect.height / 2
+    setProjects((prev) => {
+      const from = prev.findIndex((p) => p.id === reorderDragId)
+      const to = prev.findIndex((p) => p.id === id)
+      if (from < 0 || to < 0 || from === to) return prev
+      const movingDown = from < to
+      if (movingDown && !pastMidpoint) return prev
+      if (!movingDown && pastMidpoint) return prev
+      const next = prev.slice()
+      const [moved] = next.splice(from, 1)
+      next.splice(to, 0, moved)
+      return next
+    })
+  }
+  const endProjectDrag = (): void => {
+    if (reorderDragId) persistProjects(projects)
+    setReorderDragId(null)
+  }
+
   // --- Persistenza progetti (projects.json) -------------------------------
   useEffect(() => {
     let alive = true
@@ -140,7 +244,14 @@ export default function App(): React.ReactElement {
       prompts: nextPrompts
     } satisfies ProjectsFile)
   }
-  const persistProjects = (next: Project[]): void => persist(next, prompts)
+  // Il campo `order` rispecchia sempre la posizione nell'array: viene
+  // ristampato ad ogni salvataggio così resta coerente anche dopo aggiunte o
+  // rimozioni, non solo dopo un riordino esplicito.
+  const persistProjects = (next: Project[]): void =>
+    persist(
+      next.map((p, i) => ({ ...p, order: i })),
+      prompts
+    )
   const persistPrompts = (next: Prompt[]): void => persist(projects, next)
 
   // Il "+" apre una BOZZA: nulla viene aggiunto finchÃ© non si salva.
@@ -880,8 +991,21 @@ export default function App(): React.ReactElement {
                 DashAI
               </span>
             </div>
-            <div className="collapse-btn" title="Nuovo progetto" onClick={addProject} style={iconSquare}>
-              <Plus size={15} />
+            {!reorderMode && (
+              <div className="collapse-btn" title="Nuovo progetto" onClick={addProject} style={iconSquare}>
+                <Plus size={15} />
+              </div>
+            )}
+            <div
+              className={`collapse-btn${reorderMode ? ' reorder-toggle-btn active' : ''}`}
+              title={reorderMode ? 'Fine riordino' : 'Riordina progetti'}
+              onClick={() => {
+                setReorderDragId(null)
+                setReorderMode((v) => !v)
+              }}
+              style={iconSquare}
+            >
+              {reorderMode ? <Check size={15} /> : <ArrowsDownUp size={15} />}
             </div>
             <div className="collapse-btn" title="Collassa" onClick={() => setCollapsed(true)} style={iconSquare}>
               <CaretDoubleLeft size={15} />
@@ -890,6 +1014,7 @@ export default function App(): React.ReactElement {
 
           {/* Albero progetti */}
           <div
+            ref={projectTreeRef}
             style={{
               flex: '1 1 auto',
               minHeight: 0,
@@ -1034,29 +1159,81 @@ export default function App(): React.ReactElement {
               )}
             </div>
 
-            {projects.map((p) => (
-              <div key={p.id} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
-                {/* Riga progetto: clic = espandi/comprimi i comandi. L'intero item
-                    è tinto con una versione tenue del colore progetto (--proj-tint). */}
+            {projects.map((p, idx) => {
+              const isDragged = reorderDragId === p.id
+              // In riordino le card sono sempre "chiuse": niente comandi
+              // annidati, niente pulsanti d'azione, solo trascinamento.
+              const forceCollapsed = reorderMode || collapsedProjects.has(p.id)
+              return (
+              <div
+                key={p.id}
+                data-project-id={p.id}
+                draggable={reorderMode}
+                onDragStart={(e) => reorderMode && startProjectDrag(p.id, e)}
+                onDragOver={(e) => reorderMode && overProjectDrag(p.id, e)}
+                onDrop={(e) => {
+                  if (!reorderMode) return
+                  e.preventDefault()
+                  e.stopPropagation()
+                }}
+                onDragEnd={endProjectDrag}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 'var(--space-1)'
+                }}
+              >
+                {/* Riga progetto: clic = espandi/comprimi i comandi (disabilitato
+                    in riordino). L'intero item è tinto con una versione tenue del
+                    colore progetto (--proj-tint). In riordino oscilla leggermente
+                    come le icone della home di iOS, per segnalare che è afferrabile.
+                    La riga afferrata invece non oscilla e non si tinge: resta uno
+                    spazio vuoto con contorno tratteggiato nel punto in cui andrà a
+                    finire (il contenuto è reso invisibile, non rimosso, così il
+                    riquadro mantiene esattamente le stesse dimensioni). */}
                 <div
-                  className="project-row"
-                  onClick={() => toggleProject(p.id)}
+                  className={`project-row${
+                    reorderMode && !isDragged ? ` reorder-wiggle${idx % 2 ? ' reorder-wiggle--alt' : ''}` : ''
+                  }`}
+                  onClick={() => !reorderMode && toggleProject(p.id)}
                   style={{
-                    ['--proj-tint' as string]: p.color,
+                    ['--proj-tint' as string]: isDragged ? 'transparent' : p.color,
                     display: 'flex',
                     alignItems: 'center',
                     gap: 'var(--space-2)',
                     padding: 'var(--space-2)',
                     borderRadius: 'var(--radius-md)',
-                    cursor: 'pointer',
-                    minWidth: 0
+                    cursor: reorderMode ? 'grab' : 'pointer',
+                    minWidth: 0,
+                    border: isDragged ? '1.5px dashed var(--color-accent)' : '1.5px solid transparent',
+                    background: isDragged
+                      ? 'color-mix(in srgb, var(--color-accent) 8%, transparent)'
+                      : undefined
                   } as React.CSSProperties}
                 >
-                  {collapsedProjects.has(p.id) ? (
-                    <CaretRight size={12} color="var(--color-neutral-500)" style={{ flex: '0 0 auto' }} />
-                  ) : (
-                    <CaretDown size={12} color="var(--color-neutral-500)" style={{ flex: '0 0 auto' }} />
-                  )}
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 'var(--space-2)',
+                      flex: '1 1 auto',
+                      minWidth: 0,
+                      visibility: isDragged ? 'hidden' : 'visible'
+                    }}
+                  >
+                  {/* Scatola 22×22 come i pulsanti cartella/ingranaggio: è lei a
+                      determinare l'altezza della riga, non l'icona al suo interno.
+                      Così l'altezza resta identica in ogni modalità, anche quando
+                      quei pulsanti spariscono in riordino. */}
+                  <span style={projectRowIconBox}>
+                    {reorderMode ? (
+                      <DotsSixVertical size={14} color="var(--color-neutral-500)" />
+                    ) : collapsedProjects.has(p.id) ? (
+                      <CaretRight size={12} color="var(--color-neutral-500)" />
+                    ) : (
+                      <CaretDown size={12} color="var(--color-neutral-500)" />
+                    )}
+                  </span>
                   <span
                     style={{
                       flex: '1 1 auto',
@@ -1072,53 +1249,58 @@ export default function App(): React.ReactElement {
                   >
                     {p.label}
                   </span>
-                  <div
-                    className="gear-btn"
-                    title="Apri cartella progetto"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      void window.dashai.openInFileManager(p.cwd)
-                    }}
-                    style={{
-                      flex: '0 0 auto',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      width: 22,
-                      height: 22,
-                      borderRadius: 'var(--radius-sm)',
-                      color: 'var(--color-neutral-500)',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <Folder size={16} />
-                  </div>
-                  <div
-                    className="gear-btn"
-                    title="Configura progetto"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      editProject(p)
-                    }}
-                    style={{
-                      flex: '0 0 auto',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      width: 22,
-                      height: 22,
-                      borderRadius: 'var(--radius-sm)',
-                      color: 'var(--color-neutral-500)',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <Gear size={16} />
+                  {!reorderMode && (
+                    <>
+                      <div
+                        className="gear-btn"
+                        title="Apri cartella progetto"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          void window.dashai.openInFileManager(p.cwd)
+                        }}
+                        style={{
+                          flex: '0 0 auto',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          width: 22,
+                          height: 22,
+                          borderRadius: 'var(--radius-sm)',
+                          color: 'var(--color-neutral-500)',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <Folder size={16} />
+                      </div>
+                      <div
+                        className="gear-btn"
+                        title="Configura progetto"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          editProject(p)
+                        }}
+                        style={{
+                          flex: '0 0 auto',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          width: 22,
+                          height: 22,
+                          borderRadius: 'var(--radius-sm)',
+                          color: 'var(--color-neutral-500)',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <Gear size={16} />
+                      </div>
+                    </>
+                  )}
                   </div>
                 </div>
 
                 {/* Contenuto annidato del progetto (visibile se espanso):
                     i comandi/terminali. I prompt non stanno più qui. */}
-                {!collapsedProjects.has(p.id) && (
+                {!forceCollapsed && (
                   <>
                     {/* Comandi rapidi / terminali */}
                     {p.commands.map((cmd) => (
@@ -1157,7 +1339,8 @@ export default function App(): React.ReactElement {
                   </>
                 )}
               </div>
-            ))}
+              )
+            })}
           </div>
 
           {/* Impostazioni (in basso) */}
@@ -1288,4 +1471,15 @@ const iconSquare: React.CSSProperties = {
   color: 'var(--color-neutral-400)',
   cursor: 'pointer',
   flex: '0 0 auto'
+}
+
+/** Stessa scatola 22×22 dei pulsanti cartella/ingranaggio: è lei a fissare
+ *  l'altezza della riga progetto, non l'icona di stato al suo interno. */
+const projectRowIconBox: React.CSSProperties = {
+  flex: '0 0 auto',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: 22,
+  height: 22
 }
