@@ -2,12 +2,11 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
   CaretDown,
-  CaretRight,
   CaretUp,
   DotsThreeOutline,
   PencilSimple,
   Plus,
-  Trash
+  X
 } from '@phosphor-icons/react'
 import type { CSSProperties } from 'react'
 import TerminalView from './TerminalView'
@@ -16,6 +15,9 @@ import type { Column } from './types'
 
 /** Altezza approssimativa del menu a comparsa, per decidere se aprirlo sopra o sotto. */
 const MENU_HEIGHT_ESTIMATE = 190
+
+/** Larghezza minima del menu, usata anche per non farlo sbordare a destra. */
+const MENU_WIDTH = 168
 
 export interface CardProps {
   r: number
@@ -57,19 +59,21 @@ export default function Card(props: CardProps): React.ReactElement {
     props
   const inputRef = useRef<HTMLInputElement>(null)
   const triggerRef = useRef<HTMLDivElement>(null)
-  const [menuPos, setMenuPos] = useState<{ top?: number; bottom?: number; right: number } | null>(null)
+  const [menuPos, setMenuPos] = useState<{ top?: number; bottom?: number; left: number } | null>(null)
 
   // Posiziona il menu (reso in portale) sotto il trigger, in coordinate viewport.
   // Se non c'è spazio sotto (card in fondo alla finestra), lo apre sopra invece.
+  // Il trigger sta a sinistra dell'header, quindi il menu è allineato a sinistra
+  // (rientrando se sborderebbe dal lato destro della finestra).
   useLayoutEffect(() => {
     if (isMenuOpen && triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect()
-      const right = window.innerWidth - rect.right
+      const left = Math.max(6, Math.min(rect.left, window.innerWidth - MENU_WIDTH - 6))
       const spaceBelow = window.innerHeight - rect.bottom
       if (spaceBelow < MENU_HEIGHT_ESTIMATE + 6) {
-        setMenuPos({ bottom: window.innerHeight - rect.top + 6, right })
+        setMenuPos({ bottom: window.innerHeight - rect.top + 6, left })
       } else {
-        setMenuPos({ top: rect.bottom + 6, right })
+        setMenuPos({ top: rect.bottom + 6, left })
       }
     }
   }, [isMenuOpen])
@@ -163,21 +167,19 @@ export default function Card(props: CardProps): React.ReactElement {
       >
         <div
           className="menu-trigger"
-          title={col.collapsed ? 'Espandi' : 'Comprimi'}
-          onClick={(e) => {
-            e.stopPropagation()
-            props.onToggleCollapse()
-          }}
+          onClick={props.onToggleMenu}
+          ref={triggerRef}
           style={{
             flex: '0 0 auto',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
+            fontSize: 16,
             color: 'var(--color-neutral-500)',
             cursor: 'pointer'
           }}
         >
-          {col.collapsed ? <CaretRight size={13} /> : <CaretDown size={13} />}
+          <DotsThreeOutline size={16} weight="fill" />
         </div>
         {isEditing ? (
           <input
@@ -273,23 +275,6 @@ export default function Card(props: CardProps): React.ReactElement {
           </div>
         )}
 
-        <div
-          className="menu-trigger"
-          onClick={props.onToggleMenu}
-          ref={triggerRef}
-          style={{
-            flex: '0 0 auto',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 16,
-            color: 'var(--color-neutral-500)',
-            cursor: 'pointer'
-          }}
-        >
-          <DotsThreeOutline size={16} weight="fill" />
-        </div>
-
         {/* Menu reso in portale su document.body: esce da overflow/stacking
             della card e sta sopra la sidebar. */}
         {isMenuOpen &&
@@ -300,9 +285,9 @@ export default function Card(props: CardProps): React.ReactElement {
                 position: 'fixed',
                 top: menuPos.top,
                 bottom: menuPos.bottom,
-                right: menuPos.right,
+                left: menuPos.left,
                 zIndex: 1000,
-                minWidth: 168,
+                minWidth: MENU_WIDTH,
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 2,
@@ -338,8 +323,8 @@ export default function Card(props: CardProps): React.ReactElement {
                 onClick={props.onClose}
                 style={{ ...menuItemStyle, color: 'var(--color-danger)' }}
               >
-                <Trash size={16} />
-                Elimina
+                <X size={16} />
+                Chiudi
               </div>
             </div>,
             document.body
