@@ -100,7 +100,8 @@ export default function App(): React.ReactElement {
     void window.dashai.isFullScreen().then(setIsFullScreen)
     return window.dashai.onFullScreenChange(setIsFullScreen)
   }, [])
-  const macTrafficLightInset = window.dashai.platform === 'darwin' && !isFullScreen ? 28 : 0
+  const isMac = window.dashai.platform === 'darwin'
+  const macTrafficLightInset = isMac && !isFullScreen ? 28 : 0
 
   const toggleProject = (id: string): void =>
     setCollapsedProjects((s) => {
@@ -580,6 +581,11 @@ export default function App(): React.ReactElement {
         e.stopPropagation()
       }
 
+      // Modificatore principale delle scorciatoie: Cmd su macOS, Ctrl altrove.
+      // Ctrl+Tab resta Ctrl anche su mac perché Cmd+Tab è riservato dal sistema
+      // per il cambio applicazione.
+      const mod = isMac ? e.metaKey : e.ctrlKey
+
       const step = (delta: number): void => {
         if (cardOrder.length === 0) return
         const i = cardOrder.findIndex((x) => x.id === activeId)
@@ -625,8 +631,8 @@ export default function App(): React.ReactElement {
         return
       }
 
-      // Ctrl+Alt+frecce → fuoco direzionale sulla griglia
-      if (e.ctrlKey && e.altKey) {
+      // Ctrl+Alt+frecce (Cmd+Option+frecce su mac) → fuoco direzionale sulla griglia
+      if (mod && e.altKey) {
         const dir = DIRECTIONS[e.key]
         if (dir) {
           take()
@@ -635,9 +641,9 @@ export default function App(): React.ReactElement {
         return
       }
 
-      // Ctrl+Shift+W → chiudi la card attiva. Non Ctrl+W: nella shell cancella
-      // la parola precedente (readline) e non va rubato.
-      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'w') {
+      // Ctrl+Shift+W (Cmd+Shift+W su mac) → chiudi la card attiva. Non solo
+      // +W: nella shell cancella la parola precedente (readline) e non va rubato.
+      if (mod && e.shiftKey && e.key.toLowerCase() === 'w') {
         const pos = cardOrder.find((x) => x.id === activeId)
         if (pos) {
           take()
@@ -646,8 +652,8 @@ export default function App(): React.ReactElement {
         return
       }
 
-      // Ctrl+B → mostra/nascondi la barra laterale
-      if (e.ctrlKey && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'b') {
+      // Ctrl+B (Cmd+B su mac) → mostra/nascondi la barra laterale
+      if (mod && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'b') {
         take()
         setCollapsed((v) => !v)
       }

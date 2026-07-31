@@ -208,7 +208,7 @@ export default function SettingsModal(props: SettingsModalProps): React.ReactEle
           <section style={sectionStyle}>
             <div style={sectionTitleStyle}>{t('settings.section.shortcuts')}</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-              {SHORTCUTS.map((s) => (
+              {shortcutsFor(window.dashai.platform === 'darwin').map((s) => (
                 <div
                   key={s.label}
                   style={{
@@ -314,15 +314,23 @@ function Segmented<T extends string>({
   )
 }
 
-/** Scorciatoie gestite in App.tsx, elencate qui come promemoria. */
-const SHORTCUTS: { label: string; keys: string[] }[] = [
-  { label: 'shortcut.next', keys: ['Ctrl', 'Tab'] },
-  { label: 'shortcut.prev', keys: ['Ctrl', 'Shift', 'Tab'] },
-  { label: 'shortcut.jump', keys: ['Alt', '1…9'] },
-  { label: 'shortcut.move', keys: ['Ctrl', 'Alt', '←↑→↓'] },
-  { label: 'shortcut.close', keys: ['Ctrl', 'Shift', 'W'] },
-  { label: 'shortcut.sidebar', keys: ['Ctrl', 'B'] }
-]
+/**
+ * Scorciatoie gestite in App.tsx, elencate qui come promemoria. Ctrl+Tab e
+ * Alt+1…9 restano invariati su mac (Cmd+Tab è riservato dal sistema per il
+ * cambio applicazione); le altre usano Cmd al posto di Ctrl, come da
+ * convenzione macOS.
+ */
+function shortcutsFor(isMac: boolean): { label: string; keys: string[] }[] {
+  const mod = isMac ? 'Cmd' : 'Ctrl'
+  return [
+    { label: 'shortcut.next', keys: ['Ctrl', 'Tab'] },
+    { label: 'shortcut.prev', keys: ['Ctrl', 'Shift', 'Tab'] },
+    { label: 'shortcut.jump', keys: [isMac ? 'Option' : 'Alt', '1…9'] },
+    { label: 'shortcut.move', keys: [mod, isMac ? 'Option' : 'Alt', '←↑→↓'] },
+    { label: 'shortcut.close', keys: [mod, 'Shift', 'W'] },
+    { label: 'shortcut.sidebar', keys: [mod, 'B'] }
+  ]
+}
 
 const overlayStyle: CSSProperties = {
   position: 'fixed',
