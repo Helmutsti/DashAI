@@ -8,8 +8,8 @@ export interface Column {
   projectId?: string
   /** peso di larghezza (grow factor flexbox) */
   w: number
-  /** tipo di card: terminale (default), editor di prompt testuale o player Spotify. */
-  kind?: 'terminal' | 'prompt' | 'spotify'
+  /** tipo di card: terminale (default), editor di prompt testuale, player Spotify o audio YouTube. */
+  kind?: 'terminal' | 'prompt' | 'spotify' | 'youtube'
   title: string
   color: string
   /** configurazione di spawn della shell (per-card, snapshot alla creazione) */
@@ -28,6 +28,10 @@ export interface Column {
   content?: string
   /** card compressa (solo intestazione visibile) */
   collapsed?: boolean
+  /** (kind='spotify') true = webview ristretta alla larghezza mobile di Spotify. */
+  spotifyMobile?: boolean
+  /** (kind='youtube') link del video incollato dall'utente. */
+  youtubeUrl?: string
 }
 
 export interface Row {

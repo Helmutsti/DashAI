@@ -19,6 +19,7 @@ pub fn run() {
       pty::term_dispose,
       spotify::spotify_open,
       spotify::spotify_set_bounds,
+      spotify::spotify_reload,
       spotify::spotify_close,
       stores::projects_load,
       stores::projects_save,

@@ -3,7 +3,19 @@ import { useEffect, useRef } from 'react'
 export interface SpotifyViewProps {
   /** id stabile della card (= Column.id), usato come id della webview nativa lato Rust. */
   playerId: string
+  /** Nasconde la webview nativa: serve quando sopra la card si apre un
+   *  elemento del DOM (es. il menu della card, reso in portale) che altrimenti
+   *  resterebbe coperto — le webview native stanno sempre sopra al resto
+   *  dell'interfaccia, lo z-index CSS non le tocca. */
+  hidden: boolean
+  /** true = restringe la webview alla larghezza del layout mobile di Spotify
+   *  (centrata nell'area della card) invece di occuparla tutta. */
+  mobile: boolean
 }
+
+/** Sotto questa larghezza il layout responsive di Spotify passa alla
+ *  versione mobile — abbastanza stretta da restare sotto i breakpoint usuali. */
+const MOBILE_WIDTH = 420
 
 interface Bounds {
   x: number
@@ -14,6 +26,13 @@ interface Bounds {
 
 function sameBounds(a: Bounds, b: Bounds): boolean {
   return a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height
+}
+
+/** Restringe e centra il rettangolo alla larghezza mobile, se richiesto e se
+ *  la card è effettivamente più larga di quella soglia. */
+function applyMobile(b: Bounds, mobile: boolean): Bounds {
+  if (!mobile || b.width <= MOBILE_WIDTH) return b
+  return { x: b.x + (b.width - MOBILE_WIDTH) / 2, y: b.y, width: MOBILE_WIDTH, height: b.height }
 }
 
 /**
@@ -29,9 +48,18 @@ function sameBounds(a: Bounds, b: Bounds): boolean {
  * comprime/espande non lo emettono), quindi si controlla la posizione a ogni
  * frame invece di provare a intercettare ogni singola causa di spostamento.
  */
+const ZERO: Bounds = { x: 0, y: 0, width: 0, height: 0 }
+
 export default function SpotifyView(props: SpotifyViewProps): React.ReactElement {
   const { playerId } = props
   const hostRef = useRef<HTMLDivElement>(null)
+  // Letto dentro il loop rAF (che monta una volta sola su playerId): un ref
+  // tiene il valore aggiornato senza dover rimontare/riaprire la webview a
+  // ogni cambio di `hidden`.
+  const hiddenRef = useRef(props.hidden)
+  hiddenRef.current = props.hidden
+  const mobileRef = useRef(props.mobile)
+  mobileRef.current = props.mobile
 
   useEffect(() => {
     const host = hostRef.current
@@ -47,7 +75,7 @@ export default function SpotifyView(props: SpotifyViewProps): React.ReactElement
     }
 
     const tick = (): void => {
-      const b = readBounds()
+      const b = hiddenRef.current ? ZERO : applyMobile(readBounds(), mobileRef.current)
       const changed = !lastBounds || !sameBounds(lastBounds, b)
       if (changed) {
         if (!opened) {

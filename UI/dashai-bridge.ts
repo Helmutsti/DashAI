@@ -82,6 +82,7 @@ export interface SpotifyBounds {
 const spotify = {
   open: (id: string, bounds: SpotifyBounds): void => send('spotify_open', { id, bounds }),
   setBounds: (id: string, bounds: SpotifyBounds): void => send('spotify_set_bounds', { id, bounds }),
+  reload: (id: string): void => send('spotify_reload', { id }),
   close: (id: string): void => send('spotify_close', { id })
 }
 

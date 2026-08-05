@@ -1,8 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
+  ArrowClockwise,
   CaretDown,
   CaretUp,
+  Desktop,
+  DeviceMobile,
   DotsThreeOutline,
   PencilSimple,
   Plus,
@@ -12,6 +15,7 @@ import type { CSSProperties } from 'react'
 import TerminalView from './TerminalView'
 import PromptView from './PromptView'
 import SpotifyView from './SpotifyView'
+import YouTubeView from './YouTubeView'
 import type { Column } from './types'
 
 /** Altezza approssimativa del menu a comparsa, per decidere se aprirlo sopra o sotto. */
@@ -49,6 +53,12 @@ export interface CardProps {
   /** invocato quando la shell termina (per l'auto-chiusura "chiudi al termine") */
   onProcessExit: () => void
   onToggleCollapse: () => void
+  /** (kind='spotify') alterna la larghezza della webview tra desktop e mobile. */
+  onToggleSpotifyView: () => void
+  /** (kind='spotify') ricarica la pagina nella webview. */
+  onReloadSpotify: () => void
+  /** (kind='youtube') salva/aggiorna il link del video nella card. */
+  onSetYoutubeUrl: (url: string) => void
   /** (card prompt) salva il testo corrente nel progetto. */
   onSavePrompt: (content: string) => void
   /** (card prompt) aggiorna il testo nello stato di App a ogni battuta. */
@@ -110,8 +120,16 @@ export default function Card(props: CardProps): React.ReactElement {
 
   const isPrompt = col.kind === 'prompt'
   const isSpotify = col.kind === 'spotify'
+  const isYoutube = col.kind === 'youtube'
   const title =
-    col.title || (isPrompt ? 'Nuovo prompt' : isSpotify ? 'Spotify' : `Scheda ${r + 1}.${c + 1}`)
+    col.title ||
+    (isPrompt
+      ? 'Nuovo prompt'
+      : isSpotify
+        ? 'Spotify'
+        : isYoutube
+          ? 'YouTube'
+          : `Scheda ${r + 1}.${c + 1}`)
 
   return (
     <div
@@ -300,7 +318,7 @@ export default function Card(props: CardProps): React.ReactElement {
                 borderRadius: 'var(--radius-md)'
               }}
             >
-              {!isPrompt && !isSpotify && (
+              {!isPrompt && !isSpotify && !isYoutube && (
                 <div className="menu-item" onClick={props.onNewCard} style={menuItemStyle}>
                   <Plus size={16} />
                   Nuova scheda
@@ -321,6 +339,32 @@ export default function Card(props: CardProps): React.ReactElement {
                 {col.collapsed ? <CaretDown size={16} /> : <CaretUp size={16} />}
                 {col.collapsed ? 'Espandi' : 'Comprimi'}
               </div>
+              {isSpotify && (
+                <>
+                  <div
+                    className="menu-item"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      props.onToggleSpotifyView()
+                    }}
+                    style={menuItemStyle}
+                  >
+                    {col.spotifyMobile ? <Desktop size={16} /> : <DeviceMobile size={16} />}
+                    {col.spotifyMobile ? 'Vista desktop' : 'Vista mobile'}
+                  </div>
+                  <div
+                    className="menu-item"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      props.onReloadSpotify()
+                    }}
+                    style={menuItemStyle}
+                  >
+                    <ArrowClockwise size={16} />
+                    Aggiorna pagina
+                  </div>
+                </>
+              )}
               <div
                 className="menu-item menu-item--danger"
                 onClick={props.onClose}
@@ -353,7 +397,9 @@ export default function Card(props: CardProps): React.ReactElement {
             onSave={props.onSavePrompt}
           />
         ) : isSpotify ? (
-          <SpotifyView playerId={col.id} />
+          <SpotifyView playerId={col.id} hidden={isMenuOpen} mobile={!!col.spotifyMobile} />
+        ) : isYoutube ? (
+          <YouTubeView playerId={col.id} url={col.youtubeUrl} onSetUrl={props.onSetYoutubeUrl} />
         ) : (
           <TerminalView
             termId={col.id}

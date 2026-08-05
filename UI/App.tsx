@@ -12,7 +12,8 @@ import {
   MusicNotes,
   PencilSimple,
   Plus,
-  Trash
+  Trash,
+  YoutubeLogo
 } from '@phosphor-icons/react'
 import Card from './Card'
 import BrandMark from './BrandMark'
@@ -336,6 +337,19 @@ export default function App(): React.ReactElement {
   const openSpotifyCard = (): void =>
     openColumn({ kind: 'spotify', title: 'Spotify', color: '#1db954' })
 
+  // Apre la card audio YouTube: nessun link ancora, lo si incolla dentro la
+  // card stessa (vedi YouTubeView), come i prompt.
+  const openYoutubeCard = (): void =>
+    openColumn({ kind: 'youtube', title: 'YouTube', color: '#ff0000' })
+
+  const setYoutubeUrl = (id: string, url: string): void =>
+    setRows((s) =>
+      s.map((row) => ({
+        ...row,
+        cols: row.cols.map((c) => (c.id === id ? { ...c, youtubeUrl: url } : c))
+      }))
+    )
+
   // Il testo dell'editor vive nello stato delle righe (col.content): così
   // spostare la card in un'altra riga la rimonta senza perdere ciò che è stato
   // scritto ma non ancora salvato nel progetto.
@@ -428,6 +442,19 @@ export default function App(): React.ReactElement {
         cols: row.cols.map((c) => (c.id === id ? { ...c, collapsed: !c.collapsed } : c))
       }))
     )
+
+  // --- Vista mobile/desktop (solo card Spotify) ----------------------------
+  const toggleSpotifyView = (id: string): void =>
+    setRows((s) =>
+      s.map((row) => ({
+        ...row,
+        cols: row.cols.map((c) => (c.id === id ? { ...c, spotifyMobile: !c.spotifyMobile } : c))
+      }))
+    )
+
+  // Ricarica la pagina della webview Spotify: nessuno stato da toccare qui,
+  // è solo un comando verso la webview nativa.
+  const reloadSpotify = (id: string): void => window.dashai.spotify.reload(id)
 
   // --- Resize (tracce/card) via listener globali --------------------------
   const handleMove = useCallback(
@@ -866,6 +893,9 @@ export default function App(): React.ReactElement {
                   onDrop={(e) => dropOnCard(r, c, e)}
                   onProcessExit={() => removeColById(id)}
                   onToggleCollapse={() => toggleCollapse(id)}
+                  onToggleSpotifyView={() => toggleSpotifyView(id)}
+                  onReloadSpotify={() => reloadSpotify(id)}
+                  onSetYoutubeUrl={(url) => setYoutubeUrl(id, url)}
                   onSavePrompt={(content) => savePrompt(col, content)}
                   onChangePrompt={(content) => setPromptContent(id, content)}
                 />
@@ -1195,6 +1225,31 @@ export default function App(): React.ReactElement {
                 }}
               >
                 Spotify
+              </span>
+            </div>
+
+            {/* Voce fissa "YouTube": stesso schema di Spotify, una sola card
+                per volta — il link si incolla dentro la card (vedi
+                YouTubeView). `order: 3` la manda subito sotto. */}
+            <div
+              className="cmd-row"
+              onClick={openYoutubeCard}
+              title="Apri un player audio YouTube"
+              style={{ ...promptRowStyle, order: 3 }}
+            >
+              <YoutubeLogo size={13} color="var(--color-neutral-400)" style={{ flex: '0 0 auto' }} />
+              <span
+                style={{
+                  flex: '1 1 auto',
+                  minWidth: 0,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  fontSize: 13,
+                  color: 'var(--color-neutral-300)'
+                }}
+              >
+                YouTube
               </span>
             </div>
 

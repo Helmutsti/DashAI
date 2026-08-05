@@ -48,8 +48,15 @@ pub async fn spotify_open(
 
     let url = tauri::Url::parse("https://open.spotify.com/").map_err(|e| e.to_string())?;
 
+    // Senza uno user-agent "normale" Spotify non riconosce la webview come un
+    // browser desktop vero e serve una versione ridotta della pagina, priva
+    // dei controlli interattivi (incluso il pulsante di login).
     let builder = WebviewBuilder::new(format!("spotify-{id}"), WebviewUrl::External(url))
-        .data_directory(spotify_data_dir(&app));
+        .data_directory(spotify_data_dir(&app))
+        .user_agent(
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 \
+             (KHTML, like Gecko) Version/17.4 Safari/605.1.15",
+        );
 
     let webview = window
         .add_child(
@@ -80,6 +87,15 @@ pub fn spotify_set_bounds(
         webview
             .set_size(LogicalSize::new(bounds.width, bounds.height))
             .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn spotify_reload(state: State<SpotifyState>, id: String) -> Result<(), String> {
+    let sessions = state.0.lock().unwrap();
+    if let Some(webview) = sessions.get(&id) {
+        webview.reload().map_err(|e| e.to_string())?;
     }
     Ok(())
 }

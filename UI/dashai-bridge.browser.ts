@@ -57,6 +57,7 @@ export function createBrowserBridge() {
     spotify: {
       open: (): void => {},
       setBounds: (): void => {},
+      reload: (): void => {},
       close: (): void => {}
     },
     pickDirectory: (): Promise<string | null> => Promise.resolve(null),
