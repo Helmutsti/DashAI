@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "DashAI",
-  "version": "0.5.8",
+  "version": "0.5.9",
   "identifier": "com.helmutsti.dashai",
   "build": {
     "frontendDist": "../output/dist",
