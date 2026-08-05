@@ -948,14 +948,14 @@ export default function App(): React.ReactElement {
     >
       {macTrafficLightInset > 0 && (
         <div
+          data-tauri-drag-region
           style={{
             position: 'absolute',
             top: 0,
             left: 0,
             right: 0,
-            height: `calc(var(--space-4) + ${macTrafficLightInset}px)`,
-            WebkitAppRegion: 'drag'
-          } as React.CSSProperties}
+            height: `calc(var(--space-4) + ${macTrafficLightInset}px)`
+          }}
         />
       )}
       {!collapsed && (
