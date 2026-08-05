@@ -8,8 +8,8 @@ export interface Column {
   projectId?: string
   /** peso di larghezza (grow factor flexbox) */
   w: number
-  /** tipo di card: terminale (default) o editor di prompt testuale. */
-  kind?: 'terminal' | 'prompt'
+  /** tipo di card: terminale (default), editor di prompt testuale o player Spotify. */
+  kind?: 'terminal' | 'prompt' | 'spotify'
   title: string
   color: string
   /** configurazione di spawn della shell (per-card, snapshot alla creazione) */

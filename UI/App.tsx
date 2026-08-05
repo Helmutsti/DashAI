@@ -9,6 +9,7 @@ import {
   DotsSixVertical,
   Folder,
   Gear,
+  MusicNotes,
   PencilSimple,
   Plus,
   Trash
@@ -328,6 +329,12 @@ export default function App(): React.ReactElement {
       },
       0.6
     )
+
+  // Apre la card del player Spotify. Il login vive nella webview nativa
+  // (cookie persistenti su disco, vedi BE/src/spotify.rs): qui basta creare
+  // la card, non serve passare credenziali o stato.
+  const openSpotifyCard = (): void =>
+    openColumn({ kind: 'spotify', title: 'Spotify', color: '#1db954' })
 
   // Il testo dell'editor vive nello stato delle righe (col.content): così
   // spostare la card in un'altra riga la rimonta senza perdere ciò che è stato
@@ -1163,6 +1170,32 @@ export default function App(): React.ReactElement {
                   ))}
                 </>
               )}
+            </div>
+
+            {/* Voce fissa "Spotify": una sola card, nessun elenco (a
+                differenza dei prompt non c'è nulla da salvare qui, il login
+                vive nella webview nativa). `order: 2` la manda subito sotto i
+                prompt, sopra i progetti. */}
+            <div
+              className="cmd-row"
+              onClick={openSpotifyCard}
+              title="Apri il player Spotify"
+              style={{ ...promptRowStyle, order: 2 }}
+            >
+              <MusicNotes size={13} color="var(--color-neutral-400)" style={{ flex: '0 0 auto' }} />
+              <span
+                style={{
+                  flex: '1 1 auto',
+                  minWidth: 0,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  fontSize: 13,
+                  color: 'var(--color-neutral-300)'
+                }}
+              >
+                Spotify
+              </span>
             </div>
 
             {projects.map((p, idx) => {

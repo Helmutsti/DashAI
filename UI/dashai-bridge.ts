@@ -72,6 +72,19 @@ const settings = {
   path: (): Promise<string> => invoke('settings_path')
 }
 
+export interface SpotifyBounds {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+const spotify = {
+  open: (id: string, bounds: SpotifyBounds): void => send('spotify_open', { id, bounds }),
+  setBounds: (id: string, bounds: SpotifyBounds): void => send('spotify_set_bounds', { id, bounds }),
+  close: (id: string): void => send('spotify_close', { id })
+}
+
 export function createDashaiBridge() {
   return {
     version: '0.1.0',
@@ -79,6 +92,7 @@ export function createDashaiBridge() {
     terminal,
     projects,
     settings,
+    spotify,
     pickDirectory: (): Promise<string | null> => invoke('dialog_pick_directory'),
     pickFile: (): Promise<string | null> => invoke('dialog_pick_file'),
     openInFileManager: (path: string): Promise<boolean> => invoke('shell_open_path', { path }),

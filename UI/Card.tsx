@@ -11,6 +11,7 @@ import {
 import type { CSSProperties } from 'react'
 import TerminalView from './TerminalView'
 import PromptView from './PromptView'
+import SpotifyView from './SpotifyView'
 import type { Column } from './types'
 
 /** Altezza approssimativa del menu a comparsa, per decidere se aprirlo sopra o sotto. */
@@ -108,7 +109,9 @@ export default function Card(props: CardProps): React.ReactElement {
   if (isActive) shadows.push('0 0 0 1px var(--color-accent)')
 
   const isPrompt = col.kind === 'prompt'
-  const title = col.title || (isPrompt ? 'Nuovo prompt' : `Scheda ${r + 1}.${c + 1}`)
+  const isSpotify = col.kind === 'spotify'
+  const title =
+    col.title || (isPrompt ? 'Nuovo prompt' : isSpotify ? 'Spotify' : `Scheda ${r + 1}.${c + 1}`)
 
   return (
     <div
@@ -297,7 +300,7 @@ export default function Card(props: CardProps): React.ReactElement {
                 borderRadius: 'var(--radius-md)'
               }}
             >
-              {!isPrompt && (
+              {!isPrompt && !isSpotify && (
                 <div className="menu-item" onClick={props.onNewCard} style={menuItemStyle}>
                   <Plus size={16} />
                   Nuova scheda
@@ -349,6 +352,8 @@ export default function Card(props: CardProps): React.ReactElement {
             saved={!!col.promptId}
             onSave={props.onSavePrompt}
           />
+        ) : isSpotify ? (
+          <SpotifyView playerId={col.id} />
         ) : (
           <TerminalView
             termId={col.id}

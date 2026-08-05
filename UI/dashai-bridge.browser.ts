@@ -54,6 +54,11 @@ export function createBrowserBridge() {
       },
       path: (): Promise<string> => Promise.resolve('(anteprima browser, nessun file su disco)')
     },
+    spotify: {
+      open: (): void => {},
+      setBounds: (): void => {},
+      close: (): void => {}
+    },
     pickDirectory: (): Promise<string | null> => Promise.resolve(null),
     pickFile: (): Promise<string | null> => Promise.resolve(null),
     openInFileManager: (): Promise<boolean> => Promise.resolve(false),
