@@ -1,24 +1,25 @@
 ﻿import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
   ArrowsDownUp,
+  Terminal,
   CaretDoubleLeft,
-  CaretDoubleRight,
-  CaretDown,
-  CaretRight,
   Check,
   DotsSixVertical,
   Folder,
   Gear,
-  PencilSimple,
-  Plus,
-  Trash
+  Plus
 } from '@phosphor-icons/react'
 import Card from './Card'
+import ChatList, { ChatRail } from './ChatList'
+import ProjectMenu from './ProjectMenu'
+import PromptMenu from './PromptMenu'
+import { AGENT_COMMAND, AGENT_LABEL, detectAgent, type AgentKey } from './agents'
+import type { AgentSession } from './dashai-bridge'
+import { endSession, onAttention, onSessionExit, onUserInput } from './terminalHub'
 import BrandMark from './BrandMark'
 import ProjectEditorModal from './ProjectEditorModal'
 import SettingsModal from './SettingsModal'
 import { useSettings } from './SettingsContext'
-import { Icon } from './icons'
 import { newColId, type Column, type Row } from './types'
 import {
   PROJECTS_VERSION,
@@ -55,10 +56,38 @@ export default function App(): React.ReactElement {
   const [projects, setProjects] = useState<Project[]>([])
   // Elenco unico dei prompt: non appartengono più a un progetto.
   const [prompts, setPrompts] = useState<Prompt[]>([])
-  const [promptsCollapsed, setPromptsCollapsed] = useState(true)
   const [editingProject, setEditingProject] = useState<Project | null>(null)
   const [editingIsNew, setEditingIsNew] = useState(false)
-  const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(new Set())
+  // Chat attive: tutte le sessioni terminale vive, visibili o no. La griglia
+  // (`rows`) mostra solo quelle scelte; le altre restano vive nel registro
+  // delle sessioni (terminalHub) e tornano visibili con un clic.
+  const [chats, setChats] = useState<Column[]>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('dashai.chats') || '[]') as Column[]
+      // Si riprende la sessione dell'agente invece di rilanciare il comando.
+      return saved.map((c) => ({ ...c, startupCommand: resumeCommand(c) }))
+    } catch {
+      return []
+    }
+  })
+  // Chat che aspettano il tuo intervento (riga arancione con «!»).
+  const [waiting, setWaiting] = useState<Set<string>>(new Set())
+  const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
+    try {
+      return Number(localStorage.getItem('dashai.sidebarWidth')) || 280
+    } catch {
+      return 280
+    }
+  })
+  const [chatsHeight, setChatsHeight] = useState<number>(() => {
+    try {
+      return Number(localStorage.getItem('dashai.chatsHeight')) || 240
+    } catch {
+      return 240
+    }
+  })
+  // Progetto con il menu aperto (clic sulla riga del progetto).
+  const [projectMenuId, setProjectMenuId] = useState<string | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   // Modalità "riordina progetti" (stile iPhone): le card progetto restano
   // chiuse e non interagibili, spostabili solo trascinandole. `reorderDragId`
@@ -103,13 +132,6 @@ export default function App(): React.ReactElement {
   const isMac = window.dashai.platform === 'darwin'
   const macTrafficLightInset = isMac && !isFullScreen ? 28 : 0
 
-  const toggleProject = (id: string): void =>
-    setCollapsedProjects((s) => {
-      const n = new Set(s)
-      if (n.has(id)) n.delete(id)
-      else n.add(id)
-      return n
-    })
 
   const outerRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<ResizeDrag>(null)
@@ -218,13 +240,10 @@ export default function App(): React.ReactElement {
         // I prompt dei file in versione 1 (annidati nei progetti) non vengono
         // recuperati: si legge solo l'elenco globale.
         setPrompts(normalizePrompts(data.prompts))
-        // All'avvio i progetti sono tutti collassati.
-        setCollapsedProjects(new Set(list.map((p) => p.id)))
       } else {
         const seed = seedProjects()
         setProjects(seed.projects)
         setPrompts(seed.prompts)
-        setCollapsedProjects(new Set(seed.projects.map((p) => p.id)))
         void window.dashai.projects.save(seed)
       }
     })()
@@ -280,6 +299,7 @@ export default function App(): React.ReactElement {
           cols: row.cols.map((c) => (c.projectId === p.id ? { ...c, color: p.color } : c))
         }))
       )
+      setChats((s) => s.map((c) => (c.projectId === p.id ? { ...c, color: p.color } : c)))
     }
     closeEditor()
   }
@@ -290,28 +310,55 @@ export default function App(): React.ReactElement {
   }
 
   // --- Apertura card da progetto / comando --------------------------------
-  const openColumn = (partial: Omit<Column, 'id' | 'w'>, w = 1): void => {
+  const openColumn = (partial: Omit<Column, 'id' | 'w'>, w = 1, beside = true): void => {
     const col: Column = { id: newColId(), w, ...partial }
-    setRows((s) =>
-      s.length === 0
-        ? [{ h: 1, cols: [col] }]
-        : s.map((row, i) => (i === 0 ? { ...row, cols: [...row.cols, col] } : row))
-    )
+    if (col.kind !== 'prompt') setChats((s) => [...s, col])
+    placeCol(col, beside)
     // La card appena aperta è quella su cui si vuole scrivere.
     setActiveId(col.id)
     setFocusTick((n) => n + 1)
   }
-  const openCommandCard = (p: Project, cmd: QuickCommand): void =>
+  const openCommandCard = (p: Project, cmd: QuickCommand, beside = false): void =>
     openColumn({
       projectId: p.id,
       title: cmd.label,
+      icon: cmd.icon,
       color: p.color,
       shell: cmd.shell,
       shellPath: cmd.shellPath,
       cwd: p.cwd,
       startupCommand: cmd.command,
-      closeOnExit: cmd.closeOnExit
-    })
+      closeOnExit: cmd.closeOnExit,
+      startedAt: Date.now()
+    }, 1, beside)
+
+  const launchAgent = (p: Project, agent: AgentKey, beside: boolean): void =>
+    openColumn({
+      projectId: p.id,
+      title: AGENT_LABEL[agent],
+      color: p.color,
+      cwd: p.cwd,
+      startupCommand: AGENT_COMMAND[agent],
+      startedAt: Date.now()
+    }, 1, beside)
+
+  const resumeAgentSession = (p: Project, sess: AgentSession, beside: boolean): void => {
+    // Già aperta tra le chat attive: basta mostrarla.
+    const open = chats.find((c) => c.sessionId === sess.id)
+    if (open) {
+      showChat(open.id, beside)
+      return
+    }
+    openColumn({
+      projectId: p.id,
+      title: sess.title,
+      color: p.color,
+      cwd: p.cwd,
+      sessionId: sess.id,
+      startedAt: Date.now(),
+      startupCommand: sess.agent === 'claude' ? `claude --resume ${sess.id}` : `codex resume ${sess.id}`
+    }, 1, beside)
+  }
 
   // Apre una card editor: nuovo prompt vuoto oppure uno dell'elenco globale.
   // Nasce più stretta dei terminali (w<1) così si distingue anche per dimensione.
@@ -392,7 +439,8 @@ export default function App(): React.ReactElement {
   }
 
   const removeColById = (id: string): void => {
-    window.dashai.terminal.dispose(id)
+    endSession(id)
+    setChats((s) => s.filter((c) => c.id !== id))
     // Card chiusa da sola (processo terminato): l'attiva passa alla vicina, ma
     // senza rubare il fuoco a dove sta scrivendo l'utente.
     if (activeId === id) setActiveId(cardAfter(id))
@@ -402,6 +450,165 @@ export default function App(): React.ReactElement {
         .filter((row) => row.cols.length > 0)
     )
   }
+
+  /**
+   * Mette una card nella griglia. `beside`: accanto a quella attiva (o in
+   * coda se non ce n'è una); altrimenti prende il posto della chat attiva.
+   */
+  const placeCol = (col: Column, beside: boolean): void => {
+    setRows((s) => {
+      if (s.length === 0) return [{ h: 1, cols: [col] }]
+      let r = s.findIndex((row) => row.cols.some((c) => c.id === activeId))
+      const c = r >= 0 ? s[r].cols.findIndex((x) => x.id === activeId) : -1
+      if (r < 0) r = 0
+      return s.map((row, i) => {
+        if (i !== r) return row
+        const cols = row.cols.slice()
+        if (!beside && c >= 0 && cols[c].kind !== 'prompt') cols[c] = { ...col, w: cols[c].w }
+        else cols.splice(c >= 0 ? c + 1 : cols.length, 0, col)
+        return { ...row, cols }
+      })
+    })
+  }
+
+  /** Chat attiva scelta dalla barra laterale: la mostra (o la affianca). */
+  const showChat = (id: string, beside: boolean): void => {
+    const visible = rows.some((row) => row.cols.some((c) => c.id === id))
+    const col = chats.find((c) => c.id === id)
+    if (!visible && col) placeCol({ ...col, collapsed: false }, beside)
+    focusCard(id)
+  }
+
+  /** Chiude davvero una chat: termina la sessione e la toglie ovunque. */
+  const closeChat = (id: string): void => {
+    endSession(id)
+    if (activeId === id) setActiveId(cardAfter(id))
+    setChats((s) => s.filter((c) => c.id !== id))
+    setWaiting((w) => {
+      if (!w.has(id)) return w
+      const n = new Set(w)
+      n.delete(id)
+      return n
+    })
+    setRows((s) =>
+      s
+        .map((row) => ({ ...row, cols: row.cols.filter((c) => c.id !== id) }))
+        .filter((row) => row.cols.length > 0)
+    )
+  }
+
+  /** Applica una modifica a una card sia nella griglia sia tra le chat attive. */
+  const patchCol = (id: string, patch: Partial<Column>): void => {
+    setRows((s) =>
+      s.map((row) => ({ ...row, cols: row.cols.map((c) => (c.id === id ? { ...c, ...patch } : c)) }))
+    )
+    setChats((s) => s.map((c) => (c.id === id ? { ...c, ...patch } : c)))
+  }
+
+  // Segnali dal registro delle sessioni: "ti aspetto", input dell'utente,
+  // processo terminato (con "chiudi al termine" la chat sparisce).
+  const chatsRef = useRef(chats)
+  chatsRef.current = chats
+  useEffect(() => {
+    const offAtt = onAttention((id) =>
+      setWaiting((w) => (w.has(id) ? w : new Set(w).add(id)))
+    )
+    const offIn = onUserInput((id) =>
+      setWaiting((w) => {
+        if (!w.has(id)) return w
+        const n = new Set(w)
+        n.delete(id)
+        return n
+      })
+    )
+    const offExit = onSessionExit((id) => {
+      const col = chatsRef.current.find((c) => c.id === id)
+      if (col?.closeOnExit) closeChatRef.current(id)
+    })
+    return () => {
+      offAtt()
+      offIn()
+      offExit()
+    }
+  }, [])
+  const closeChatRef = useRef(closeChat)
+  closeChatRef.current = closeChat
+
+  // Le chat attive si ricordano fra un avvio e l'altro (senza il testo dei prompt).
+  useEffect(() => {
+    try {
+      localStorage.setItem('dashai.chats', JSON.stringify(chats.map(({ content: _c, ...c }) => c)))
+    } catch {
+      /* archiviazione non disponibile */
+    }
+  }, [chats])
+
+  // Nome della chat = nome della sessione ufficiale dell'agente. Ogni tanto si
+  // cerca, per le chat di Claude Code e Codex, la sessione più recente della
+  // loro cartella nata dopo l'avvio della chat.
+  useEffect(() => {
+    const tick = async (): Promise<void> => {
+      const list = chatsRef.current.filter(
+        (c) => !c.titleLocked && c.startedAt && detectAgent(c.startupCommand) !== 'ollama' && detectAgent(c.startupCommand)
+      )
+      const byCwd = new Map<string, AgentSession[]>()
+      for (const c of list) {
+        const cwd = c.cwd ?? ''
+        if (!byCwd.has(cwd)) byCwd.set(cwd, await window.dashai.agentSessions(cwd).catch(() => []))
+        const agent = detectAgent(c.startupCommand)
+        const taken = new Set(chatsRef.current.filter((x) => x.id !== c.id).map((x) => x.sessionId))
+        const match = c.sessionId
+          ? byCwd.get(cwd)!.find((x) => x.id === c.sessionId)
+          : byCwd.get(cwd)!.find((x) => x.agent === agent && x.updated >= (c.startedAt as number) - 5000 && !taken.has(x.id))
+        if (match && (match.title !== c.title || match.id !== c.sessionId)) {
+          patchColRef.current(c.id, { title: match.title, sessionId: match.id })
+        }
+      }
+    }
+    const timer = setInterval(() => void tick(), 15000)
+    return () => clearInterval(timer)
+  }, [])
+  const patchColRef = useRef(patchCol)
+  patchColRef.current = patchCol
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('dashai.chatsHeight', String(Math.round(chatsHeight)))
+    } catch {
+      /* archiviazione non disponibile */
+    }
+  }, [chatsHeight])
+
+  const startSidebarResize = (e: React.PointerEvent): void => {
+    e.preventDefault()
+    const startX = e.clientX
+    const startW = sidebarWidth
+    const onMove = (ev: PointerEvent): void =>
+      setSidebarWidth(Math.max(SIDEBAR_MIN, Math.min(SIDEBAR_MAX, startW + ev.clientX - startX)))
+    const onUp = (): void => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+  }
+  useEffect(() => {
+    try {
+      localStorage.setItem('dashai.sidebarWidth', String(Math.round(sidebarWidth)))
+    } catch {
+      /* archiviazione non disponibile */
+    }
+  }, [sidebarWidth])
+
+  /** Nuova chat al volo, senza progetto: parte dalla cartella utente. */
+  const launchFreeAgent = (agent: AgentKey, beside: boolean): void =>
+    openColumn({
+      title: AGENT_LABEL[agent],
+      color: '',
+      cwd: '',
+      startupCommand: AGENT_COMMAND[agent],
+      startedAt: Date.now()
+    }, 1, beside)
 
   // --- Ripristino layout --------------------------------------------------
   /**
@@ -529,6 +736,7 @@ export default function App(): React.ReactElement {
           cwd: src.cwd,
           startupCommand: ''
         }
+        setChats((list) => [...list, clone])
         return { ...row, cols: [...row.cols.slice(0, c + 1), clone, ...row.cols.slice(c + 1)] }
       })
     )
@@ -537,7 +745,8 @@ export default function App(): React.ReactElement {
   const removeCol = (r: number, c: number): void => {
     setOpenMenu(null)
     const col = rows[r]?.cols[c]
-    if (col) window.dashai.terminal.dispose(col.id) // termina la shell
+    // Una chat chiusa dalla griglia resta tra le chat attive (la sessione vive);
+    // si termina davvero con la X nella barra laterale. Un prompt invece sparisce.
     // Chiusura voluta dall'utente: il fuoco passa alla card vicina.
     if (col && activeId === col.id) focusCard(cardAfter(col.id))
     setRows((s) =>
@@ -549,13 +758,8 @@ export default function App(): React.ReactElement {
 
   const commitTitle = (r: number, c: number, value: string): void => {
     setEditing(null)
-    setRows((s) =>
-      s.map((row, ri) =>
-        ri === r
-          ? { ...row, cols: row.cols.map((col, ci) => (ci === c ? { ...col, title: value.trim() } : col)) }
-          : row
-      )
-    )
+    const id = rows[r]?.cols[c]?.id
+    if (id) patchCol(id, { title: value.trim(), titleLocked: value.trim() !== '' })
   }
 
   // --- Shortcut da tastiera -----------------------------------------------
@@ -822,6 +1026,7 @@ export default function App(): React.ReactElement {
               dropTarget && dropTarget.r === r && dropTarget.c === c ? dropTarget.side : null
             return (
               <Fragment key={id}>
+                {dropSide === 'before' && veil(r, c)}
                 <Card
                   r={r}
                   c={c}
@@ -831,9 +1036,27 @@ export default function App(): React.ReactElement {
                   isEditing={editing === id}
                   isDragged={!!dragCard && dragCard.r === r && dragCard.c === c}
                   isActive={highlightId === id}
+                  waiting={waiting.has(id)}
+                  headerExtra={
+                    col.kind !== 'prompt' ? (
+                      <PromptMenu
+                        prompts={prompts}
+                        copiedLabel={t('prompts.copied')}
+                        onEdit={(pr) => {
+                          setActiveId(id)
+                          openPromptCard(pr)
+                        }}
+                        onDelete={(pr) => deletePrompt(pr.id)}
+                        onNew={() => {
+                          setActiveId(id)
+                          openPromptCard()
+                        }}
+                      />
+                    ) : undefined
+                  }
                   byRows={byRows}
                   onActivate={() => setActiveId(id)}
-                  dropSide={dropSide}
+                  dropSide={null}
                   onToggleMenu={(e) => {
                     e.stopPropagation()
                     setOpenMenu((m) => (m === id ? null : id))
@@ -862,6 +1085,7 @@ export default function App(): React.ReactElement {
                   onSavePrompt={(content) => savePrompt(col, content)}
                   onChangePrompt={(content) => setPromptContent(id, content)}
                 />
+                {dropSide === 'after' && veil(r, c)}
                 {c < row.cols.length - 1 && (
                   <div
                     onPointerDown={(e) => startDragCol(r, c, e)}
@@ -880,6 +1104,41 @@ export default function App(): React.ReactElement {
         </div>
       </div>
     </div>
+    )
+  }
+
+  // Velo di rilascio: occupa il posto dove andrà la chat trascinata; la card
+  // di destinazione si stringe da sola perché condivide lo spazio della traccia.
+  const veil = (r: number, c: number): React.ReactElement => {
+    const dragged = dragCard ? rows[dragCard.r]?.cols[dragCard.c] : undefined
+    const color = dragged?.color || 'var(--color-accent)'
+    return (
+      <div
+        key="veil"
+        onDragOver={(e) => {
+          e.preventDefault()
+          if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
+        }}
+        onDrop={(e) => dropOnCard(r, c, e)}
+        style={{
+          flex: '1 1 0%',
+          minWidth: 0,
+          minHeight: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 'var(--space-2)',
+          borderRadius: 'var(--radius-lg)',
+          border: `1.5px dashed ${color}`,
+          background: `color-mix(in srgb, ${color} 12%, transparent)`,
+          color,
+          fontSize: 13,
+          fontWeight: 500
+        }}
+      >
+        Rilascia qui
+      </div>
     )
   }
 
@@ -938,7 +1197,7 @@ export default function App(): React.ReactElement {
         width: '100vw',
         height: '100vh',
         overflow: 'hidden',
-        background: 'var(--color-bg)',
+        background: 'var(--app-bg)',
         color: 'var(--color-text)',
         fontFamily: 'var(--font-body)',
         padding: 'var(--space-4)',
@@ -961,19 +1220,25 @@ export default function App(): React.ReactElement {
       {!collapsed && (
         <div
           style={{
-            flex: '0 0 280px',
+            flex: `0 0 ${sidebarWidth}px`,
+            // Il contenuto (titoli lunghi) non deve mai allargare la barra.
+            minWidth: 0,
+            position: 'relative',
             height: '100%',
-            background: 'var(--color-surface)',
-            boxShadow: 'var(--shadow-sm)',
-            borderRadius: 'var(--radius-lg)',
+            // Barra fusa nello sfondo: niente riquadro né ombra, le "isole" sono
+            // solo le chat.
             color: 'var(--color-text)',
             display: 'flex',
             flexDirection: 'column',
-            padding: 'var(--space-6) var(--space-4)',
+            padding: 'var(--space-3) var(--space-2) var(--space-2)',
+            gap: 'var(--space-5)',
             minHeight: 0
           } as React.CSSProperties}
         >
-          {/* Brand + azioni */}
+          {/* Bordo destro trascinabile: allarga o stringe la barra */}
+          <div className="sidebar-resizer" onPointerDown={startSidebarResize} />
+
+          {/* Brand + chiudi barra */}
           <div style={{ flex: '0 0 auto', display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
             <div
               style={{
@@ -997,23 +1262,7 @@ export default function App(): React.ReactElement {
                 DashAI
               </span>
             </div>
-            {!reorderMode && (
-              <div className="collapse-btn" title="Nuovo progetto" onClick={addProject} style={iconSquare}>
-                <Plus size={15} />
-              </div>
-            )}
-            <div
-              className={`collapse-btn${reorderMode ? ' reorder-toggle-btn active' : ''}`}
-              title={reorderMode ? 'Fine riordino' : 'Riordina progetti'}
-              onClick={() => {
-                setReorderDragId(null)
-                setReorderMode((v) => !v)
-              }}
-              style={iconSquare}
-            >
-              {reorderMode ? <Check size={15} /> : <ArrowsDownUp size={15} />}
-            </div>
-            <div className="collapse-btn" title="Collassa" onClick={() => setCollapsed(true)} style={iconSquare}>
+            <div className="gear-btn" title={t('sidebar.collapse')} onClick={() => setCollapsed(true)} style={plainIconBtn}>
               <CaretDoubleLeft size={15} />
             </div>
           </div>
@@ -1025,151 +1274,36 @@ export default function App(): React.ReactElement {
               flex: '1 1 auto',
               minHeight: 0,
               overflowY: 'auto',
-              marginTop: 'var(--space-6)',
               display: 'flex',
               flexDirection: 'column',
-              gap: 'var(--space-3)'
+              gap: 'var(--space-1)'
             }}
           >
-            {/* Voce fissa "Prompt": elenco unico. Non è un progetto e non ha
-                colore — i prompt non appartengono a nessuno.
-                `order: 1` la manda in fondo, sotto tutti i progetti (che stanno
-                a 0): resta scritta qui sopra per non spezzare in due il blocco
-                dell'albero progetti. */}
-            <div style={{ order: 1, display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
+            {/* Titolo "Progetti": qui stanno il + per un nuovo progetto e il
+                riordino, non più nell'intestazione. `order: -1` lo tiene in cima. */}
+            <div style={{ order: -1, display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+              <span style={sectionTitleStyle}>{t('sidebar.projects')}</span>
               <div
-                className="project-row"
-                onClick={() => setPromptsCollapsed((v) => !v)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 'var(--space-2)',
-                  padding: 'var(--space-2)',
-                  borderRadius: 'var(--radius-md)',
-                  cursor: 'pointer',
-                  minWidth: 0
+                className={`gear-btn${reorderMode ? ' reorder-toggle-btn active' : ''}`}
+                title={reorderMode ? t('sidebar.reorderDone') : t('sidebar.reorder')}
+                onClick={() => {
+                  setReorderDragId(null)
+                  setProjectMenuId(null)
+                  setReorderMode((v) => !v)
                 }}
+                style={plainIconBtn}
               >
-                {promptsCollapsed ? (
-                  <CaretRight size={12} color="var(--color-neutral-500)" style={{ flex: '0 0 auto' }} />
-                ) : (
-                  <CaretDown size={12} color="var(--color-neutral-500)" style={{ flex: '0 0 auto' }} />
-                )}
-                <span
-                  style={{
-                    flex: '1 1 auto',
-                    minWidth: 0,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                    fontFamily: 'var(--font-heading)',
-                    fontWeight: 500,
-                    fontSize: 13,
-                    color: 'var(--color-text)'
-                  }}
-                >
-                  {t('prompts.title')}
-                </span>
-                {/* Stessa scatola 22×22 dei pulsanti cartella/ingranaggio delle
-                    righe progetto: senza, il numero finirebbe a filo del bordo
-                    e non allineato alla loro colonna di icone. */}
-                <span
-                  style={{
-                    flex: '0 0 auto',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: 22,
-                    height: 22,
-                    fontSize: 11,
-                    color: 'var(--color-neutral-500)'
-                  }}
-                >
-                  {prompts.length}
-                </span>
+                {reorderMode ? <Check size={14} /> : <ArrowsDownUp size={14} />}
               </div>
-
-              {!promptsCollapsed && (
-                <>
-                  {/* "nuovo prompt": apre subito una card editor vuota */}
-                  <div
-                    className="cmd-row"
-                    onClick={() => openPromptCard()}
-                    title={t('prompts.newCard')}
-                    style={promptRowStyle}
-                  >
-                    <Plus size={13} color="var(--color-neutral-400)" style={{ flex: '0 0 auto' }} />
-                    <span
-                      style={{
-                        flex: '1 1 auto',
-                        minWidth: 0,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                        fontSize: 13,
-                        fontStyle: 'italic',
-                        color: 'var(--color-neutral-400)'
-                      }}
-                    >
-                      {t('prompts.new')}
-                    </span>
-                  </div>
-
-                  {/* Prompt salvati: clic = apri la card; cestino = elimina */}
-                  {prompts.map((pr) => (
-                    <div
-                      key={pr.id}
-                      className="cmd-row"
-                      onClick={() => openPromptCard(pr)}
-                      title={pr.label}
-                      style={promptRowStyle}
-                    >
-                      <PencilSimple size={14} color="var(--color-neutral-400)" style={{ flex: '0 0 auto' }} />
-                      <span
-                        style={{
-                          flex: '1 1 auto',
-                          minWidth: 0,
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                          fontSize: 13,
-                          color: 'var(--color-neutral-300)'
-                        }}
-                      >
-                        {pr.label}
-                      </span>
-                      <div
-                        className="gear-btn"
-                        title={t('prompts.delete')}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          deletePrompt(pr.id)
-                        }}
-                        style={{
-                          flex: '0 0 auto',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          width: 18,
-                          height: 18,
-                          borderRadius: 'var(--radius-sm)',
-                          color: 'var(--color-neutral-500)',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        <Trash size={13} />
-                      </div>
-                    </div>
-                  ))}
-                </>
+              {!reorderMode && (
+                <div className="gear-btn" title={t('sidebar.newProject')} onClick={addProject} style={plainIconBtn}>
+                  <Plus size={14} />
+                </div>
               )}
             </div>
 
             {projects.map((p, idx) => {
               const isDragged = reorderDragId === p.id
-              // In riordino le card sono sempre "chiuse": niente comandi
-              // annidati, niente pulsanti d'azione, solo trascinamento.
-              const forceCollapsed = reorderMode || collapsedProjects.has(p.id)
               return (
               <div
                 key={p.id}
@@ -1189,25 +1323,23 @@ export default function App(): React.ReactElement {
                   gap: 'var(--space-1)'
                 }}
               >
-                {/* Riga progetto: clic = espandi/comprimi i comandi (disabilitato
-                    in riordino). L'intero item è tinto con una versione tenue del
-                    colore progetto (--proj-tint). In riordino oscilla leggermente
-                    come le icone della home di iOS, per segnalare che è afferrabile.
-                    La riga afferrata invece non oscilla e non si tinge: resta uno
-                    spazio vuoto con contorno tratteggiato nel punto in cui andrà a
-                    finire (il contenuto è reso invisibile, non rimosso, così il
-                    riquadro mantiene esattamente le stesse dimensioni). */}
+                {/* Riga progetto compatta: pallino del colore e nome. Clic = apre
+                    il menu del progetto (disabilitato in riordino); cartella e
+                    ingranaggio compaiono solo al passaggio del mouse. In riordino
+                    oscilla come le icone della home di iOS; la riga afferrata non
+                    oscilla e resta come spazio tratteggiato (contenuto invisibile,
+                    non rimosso, così mantiene le stesse dimensioni). */}
+                <div style={{ position: 'relative' }}>
                 <div
-                  className={`project-row${
+                  className={`project-row${projectMenuId === p.id ? ' is-open' : ''}${
                     reorderMode && !isDragged ? ` reorder-wiggle${idx % 2 ? ' reorder-wiggle--alt' : ''}` : ''
                   }`}
-                  onClick={() => !reorderMode && toggleProject(p.id)}
+                  onClick={() => !reorderMode && setProjectMenuId((m) => (m === p.id ? null : p.id))}
                   style={{
-                    ['--proj-tint' as string]: isDragged ? 'transparent' : p.color,
                     display: 'flex',
                     alignItems: 'center',
                     gap: 'var(--space-2)',
-                    padding: 'var(--space-2)',
+                    padding: 'var(--space-1) var(--space-2)',
                     borderRadius: 'var(--radius-md)',
                     cursor: reorderMode ? 'grab' : 'pointer',
                     minWidth: 0,
@@ -1215,7 +1347,7 @@ export default function App(): React.ReactElement {
                     background: isDragged
                       ? 'color-mix(in srgb, var(--color-accent) 8%, transparent)'
                       : undefined
-                  } as React.CSSProperties}
+                  }}
                 >
                   <div
                     style={{
@@ -1227,17 +1359,13 @@ export default function App(): React.ReactElement {
                       visibility: isDragged ? 'hidden' : 'visible'
                     }}
                   >
-                  {/* Scatola 22×22 come i pulsanti cartella/ingranaggio: è lei a
-                      determinare l'altezza della riga, non l'icona al suo interno.
-                      Così l'altezza resta identica in ogni modalità, anche quando
-                      quei pulsanti spariscono in riordino. */}
+                  {/* Scatola 22×22 come i pulsanti cartella/ingranaggio: fissa
+                      l'altezza della riga in ogni modalità. */}
                   <span style={projectRowIconBox}>
                     {reorderMode ? (
                       <DotsSixVertical size={14} color="var(--color-neutral-500)" />
-                    ) : collapsedProjects.has(p.id) ? (
-                      <CaretRight size={12} color="var(--color-neutral-500)" />
                     ) : (
-                      <CaretDown size={12} color="var(--color-neutral-500)" />
+                      <span style={{ width: 10, height: 10, borderRadius: '50%', background: p.color }} />
                     )}
                   </span>
                   <span
@@ -1256,98 +1384,76 @@ export default function App(): React.ReactElement {
                     {p.label}
                   </span>
                   {!reorderMode && (
-                    <>
+                    <div className="row-actions" style={{ display: 'flex', alignItems: 'center' }}>
                       <div
                         className="gear-btn"
-                        title="Apri cartella progetto"
+                        title={t('project.openFolder')}
                         onClick={(e) => {
                           e.stopPropagation()
                           void window.dashai.openInFileManager(p.cwd)
                         }}
-                        style={{
-                          flex: '0 0 auto',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          width: 22,
-                          height: 22,
-                          borderRadius: 'var(--radius-sm)',
-                          color: 'var(--color-neutral-500)',
-                          cursor: 'pointer'
-                        }}
+                        style={projectRowIconBtn}
                       >
                         <Folder size={16} />
                       </div>
                       <div
                         className="gear-btn"
-                        title="Configura progetto"
+                        title={t('project.configure')}
                         onClick={(e) => {
                           e.stopPropagation()
+                          setProjectMenuId(null)
                           editProject(p)
                         }}
-                        style={{
-                          flex: '0 0 auto',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          width: 22,
-                          height: 22,
-                          borderRadius: 'var(--radius-sm)',
-                          color: 'var(--color-neutral-500)',
-                          cursor: 'pointer'
-                        }}
+                        style={projectRowIconBtn}
                       >
                         <Gear size={16} />
                       </div>
-                    </>
+                    </div>
                   )}
                   </div>
                 </div>
 
-                {/* Contenuto annidato del progetto (visibile se espanso):
-                    i comandi/terminali. I prompt non stanno più qui. */}
-                {!forceCollapsed && (
-                  <>
-                    {/* Comandi rapidi / terminali */}
-                    {p.commands.map((cmd) => (
-                      <div
-                        key={cmd.id}
-                        className="cmd-row"
-                        onClick={() => openCommandCard(p, cmd)}
-                        title={cmd.command || cmd.label}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 'var(--space-3)',
-                          padding: 'var(--space-1) var(--space-2)',
-                          marginLeft: 'var(--space-5)',
-                          borderRadius: 'var(--radius-sm)',
-                          cursor: 'pointer',
-                          minWidth: 0
-                        }}
-                      >
-                        <Icon name={cmd.icon} size={14} color="var(--color-neutral-400)" style={{ flex: '0 0 auto' }} />
-                        <span
-                          style={{
-                            flex: '1 1 auto',
-                            minWidth: 0,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                            fontSize: 13,
-                            color: 'var(--color-neutral-300)'
-                          }}
-                        >
-                          {cmd.label}
-                        </span>
-                      </div>
-                    ))}
-                  </>
+                {/* Menu del progetto: si apre al clic sulla riga. Per ora elenca i
+                    comandi del progetto (gli agenti arrivano con le impostazioni
+                    del progetto). */}
+                {projectMenuId === p.id && !reorderMode && (
+                  <ProjectMenu
+                    project={p}
+                    onClose={() => setProjectMenuId(null)}
+                    onAgent={(agent, beside) => {
+                      setProjectMenuId(null)
+                      launchAgent(p, agent, beside)
+                    }}
+                    onCommand={(cmd, beside) => {
+                      setProjectMenuId(null)
+                      openCommandCard(p, cmd, beside)
+                    }}
+                    onResume={(sess, beside) => {
+                      setProjectMenuId(null)
+                      resumeAgentSession(p, sess, beside)
+                    }}
+                  />
                 )}
+                </div>
               </div>
               )
             })}
           </div>
+
+          <ChatList
+            chats={chats}
+            projects={projects}
+            waiting={waiting}
+            visibleIds={new Set(rows.flatMap((row) => row.cols.map((c) => c.id)))}
+            activeId={activeId}
+            height={chatsHeight}
+            onResize={setChatsHeight}
+            onShow={showChat}
+            onClose={closeChat}
+            onNewChat={launchFreeAgent}
+            newChatLabel={t('sidebar.newChat')}
+            label={t('sidebar.activeChats')}
+          />
 
           {/* Impostazioni (in basso) */}
           <div
@@ -1355,7 +1461,6 @@ export default function App(): React.ReactElement {
             onClick={() => setSettingsOpen(true)}
             style={{
               flex: '0 0 auto',
-              marginTop: 'var(--space-3)',
               display: 'flex',
               alignItems: 'center',
               gap: 'var(--space-3)',
@@ -1373,30 +1478,18 @@ export default function App(): React.ReactElement {
       )}
 
       {collapsed && (
-        <div
-          className="reopen-btn"
-          title="Apri barra laterale"
-          onClick={() => setCollapsed(false)}
-          style={{
-            position: 'absolute',
-            top: `calc(var(--space-4) + ${macTrafficLightInset}px)`,
-            left: 0,
-            zIndex: 5,
-            width: 16,
-            height: 44,
-            borderRadius: '0 var(--radius-md) var(--radius-md) 0',
-            background: 'var(--color-surface)',
-            boxShadow: 'var(--shadow-sm)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            lineHeight: 1,
-            color: 'var(--color-neutral-400)',
-            cursor: 'pointer'
-          }}
-        >
-          <CaretDoubleRight size={11} />
-        </div>
+        <ChatRail
+          chats={chats}
+          waiting={waiting}
+          activeId={activeId}
+          topInset={macTrafficLightInset}
+          onOpen={() => setCollapsed(false)}
+          onShow={showChat}
+          onSettings={() => setSettingsOpen(true)}
+          onNewChat={launchFreeAgent}
+          newChatLabel={t('sidebar.newChat')}
+          openLabel={t('sidebar.expand')}
+        />
       )}
 
       <div
@@ -1414,7 +1507,16 @@ export default function App(): React.ReactElement {
           paddingLeft: collapsed ? 'calc(16px - var(--space-4) + var(--space-3))' : 0
         }}
       >
-        {canvasChildren}
+        {canvasChildren.length > 0 ? (
+          canvasChildren
+        ) : (
+          // Nessuna chat da guardare: un invito, non un'area vuota.
+          <div style={{ flex: '1 1 auto', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-5)', borderRadius: 'var(--radius-lg)', background: 'var(--color-surface)' }}>
+            <Terminal size={32} color="var(--color-neutral-500)" />
+            <span style={{ fontFamily: 'var(--font-heading)', fontSize: 16, fontWeight: 600, color: 'var(--color-text)' }}>{t('empty.title')}</span>
+            <span style={{ fontSize: 11.5, lineHeight: 1.5, color: 'var(--color-neutral-500)' }}>{t('empty.hint')}</span>
+          </div>
+        )}
       </div>
 
       {editingProject && (
@@ -1441,17 +1543,6 @@ export default function App(): React.ReactElement {
   )
 }
 
-/** Riga dell'elenco prompt, rientrata sotto la voce "Prompt". */
-const promptRowStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 'var(--space-3)',
-  padding: 'var(--space-1) var(--space-2)',
-  marginLeft: 'var(--space-5)',
-  borderRadius: 'var(--radius-sm)',
-  cursor: 'pointer',
-  minWidth: 0
-}
 
 /** Durata dell'evidenziazione della card raggiunta da tastiera. */
 const HIGHLIGHT_MS = 900
@@ -1464,20 +1555,51 @@ const DIRECTIONS: Record<string, 'left' | 'right' | 'up' | 'down' | undefined> =
   ArrowDown: 'down'
 }
 
-const iconSquare: React.CSSProperties = {
-  width: 28,
-  height: 28,
-  borderRadius: 'var(--radius-md)',
-  border: '1px solid var(--color-divider)',
+
+/**
+ * Comando con cui riaprire una chat dopo un riavvio: la sessione dell'agente se
+ * la conosciamo, altrimenti il comando originale.
+ */
+function resumeCommand(c: Column): string | undefined {
+  const agent = detectAgent(c.startupCommand)
+  if (c.sessionId && agent === 'claude') return `claude --resume ${c.sessionId}`
+  if (c.sessionId && agent === 'codex') return `codex resume ${c.sessionId}`
+  return c.startupCommand
+}
+
+const SIDEBAR_MIN = 200
+const SIDEBAR_MAX = 520
+
+/** Pulsante solo icona, senza bordo (chiudi barra, +, riordina). */
+const plainIconBtn: React.CSSProperties = {
+  width: 22,
+  height: 22,
+  borderRadius: 'var(--radius-sm)',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  fontSize: 16,
-  lineHeight: 1,
   color: 'var(--color-neutral-400)',
   cursor: 'pointer',
   flex: '0 0 auto'
 }
+
+/** Titolo di sezione della barra laterale ("Progetti"). */
+const sectionTitleStyle: React.CSSProperties = {
+  flex: '1 1 auto',
+  fontSize: 11,
+  fontWeight: 700,
+  letterSpacing: '0.08em',
+  textTransform: 'uppercase',
+  color: 'var(--color-neutral-500)'
+}
+
+/** Cartella e ingranaggio nella riga progetto (visibili al passaggio del mouse). */
+const projectRowIconBtn: React.CSSProperties = {
+  ...plainIconBtn,
+  color: 'var(--color-neutral-500)'
+}
+
+
 
 /** Stessa scatola 22×22 dei pulsanti cartella/ingranaggio: è lei a fissare
  *  l'altezza della riga progetto, non l'icona di stato al suo interno. */

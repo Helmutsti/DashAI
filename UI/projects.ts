@@ -1,4 +1,5 @@
 import type { IconName } from './icons'
+import type { AgentKey } from './agents'
 
 /** ---- Shell ---- */
 export type ShellKey =
@@ -118,6 +119,8 @@ export interface Project {
   commands: QuickCommand[]
   /** posizione nell'elenco della sidebar (riordino manuale) */
   order: number
+  /** agenti mostrati nel menu del progetto; assente = tutti */
+  agents?: AgentKey[]
 }
 
 export interface ProjectsFile {

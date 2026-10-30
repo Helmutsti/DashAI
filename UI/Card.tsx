@@ -12,6 +12,7 @@ import type { CSSProperties } from 'react'
 import TerminalView from './TerminalView'
 import PromptView from './PromptView'
 import type { Column } from './types'
+import { ChatIcon } from './ChatList'
 
 /** Altezza approssimativa del menu a comparsa, per decidere se aprirlo sopra o sotto. */
 const MENU_HEIGHT_ESTIMATE = 190
@@ -30,6 +31,10 @@ export interface CardProps {
   isDragged: boolean
   /** card col fuoco: bersaglio delle shortcut (Ctrl+Tab, Alt+N, …) */
   isActive: boolean
+  /** contenuto aggiuntivo a destra nell'intestazione (es. il menu dei prompt) */
+  headerExtra?: React.ReactNode
+  /** la chat aspetta il tuo intervento */
+  waiting?: boolean
   /** l'utente ha interagito con questa card: diventa quella attiva */
   onActivate: () => void
   /** true se le card sono affiancate nella traccia, false se impilate. */
@@ -55,7 +60,7 @@ export interface CardProps {
 }
 
 export default function Card(props: CardProps): React.ReactElement {
-  const { r, c, col, projectLabel, isMenuOpen, isEditing, isDragged, isActive, byRows, dropSide } =
+  const { r, c, col, projectLabel, isMenuOpen, isEditing, isDragged, isActive, byRows, dropSide, waiting } =
     props
   const inputRef = useRef<HTMLInputElement>(null)
   const triggerRef = useRef<HTMLDivElement>(null)
@@ -86,20 +91,14 @@ export default function Card(props: CardProps): React.ReactElement {
   }, [isEditing])
 
   const color = col.color
-  const cardBg = color
-    ? `color-mix(in srgb, ${color} 15%, var(--color-surface))`
-    : 'var(--color-surface)'
+  const cardBg = 'var(--color-surface)'
   // Bordo vero (non box-shadow): un box-shadow con colore semi-trasparente
   // arrotonda gli angoli in modo diverso da un border reale sotto WebKit,
   // deformando visibilmente il radius rispetto al resto della card.
   // Card appena raggiunta da tastiera: bordo a contrasto per un istante (App
   // spegne `isActive` da solo). Il colore accent è opaco, quindi non deforma il
   // radius come farebbe un bordo semi-trasparente (vedi nota sopra).
-  const cardBorderColor = isActive
-    ? 'var(--color-accent)'
-    : color
-      ? `color-mix(in srgb, ${color} 30%, transparent)`
-      : 'var(--color-neutral-800)'
+  const cardBorderColor = isActive ? 'var(--color-accent)' : 'var(--color-neutral-800)'
   // La barra di inserimento va sul lato da cui la card entrerà: i bordi
   // verticali quando le card sono affiancate, quelli orizzontali se impilate.
   const shadows: string[] = []
@@ -218,12 +217,12 @@ export default function Card(props: CardProps): React.ReactElement {
               flex: '1 1 auto',
               minWidth: 0,
               display: 'flex',
-              alignItems: 'baseline',
-              gap: 4,
+              alignItems: 'center',
+              gap: 'var(--space-2)',
               overflow: 'hidden',
               fontFamily: 'var(--font-heading)',
-              fontSize: 11,
-              fontWeight: 600,
+              fontSize: 13,
+              fontWeight: 500,
               // il contenitore occupa tutto lo spazio libero dell'header: qui
               // vale il cursore di trascinamento, il cursore di testo compare
               // solo sopra le stringhe vere (vedi span sotto)
@@ -232,27 +231,29 @@ export default function Card(props: CardProps): React.ReactElement {
           >
             {projectLabel && (
               <>
+                <span style={{ flex: '0 0 auto', width: 8, height: 8, borderRadius: '50%', background: color || 'var(--color-neutral-500)', alignSelf: 'center' }} />
                 {/* si accorcia prima del titolo, che è l'informazione più specifica */}
                 <span
                   style={{
                     flex: '0 1 auto',
                     minWidth: 0,
-                    maxWidth: '50%',
+                    maxWidth: '40%',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap',
-                    letterSpacing: '0.08em',
-                    textTransform: 'uppercase',
-                    color: color || 'var(--color-accent)',
+                    color: 'var(--color-neutral-500)',
                     cursor: 'text'
                   }}
                 >
                   {projectLabel}
                 </span>
-                <span style={{ flex: '0 0 auto', color: 'var(--color-neutral-500)', cursor: 'text' }}>
-                  ·
-                </span>
+                <span style={{ flex: '0 0 auto', color: 'var(--color-neutral-700)', cursor: 'text' }}>/</span>
               </>
+            )}
+            {!isPrompt && (
+              <span style={{ flex: '0 0 auto', alignSelf: 'center', display: 'flex' }}>
+                <ChatIcon col={col} size={13} color={waiting ? 'var(--color-attention)' : 'var(--color-neutral-300)'} />
+              </span>
             )}
             <span
               style={{
@@ -264,16 +265,21 @@ export default function Card(props: CardProps): React.ReactElement {
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
-                color: projectLabel ? 'var(--color-text)' : color || 'var(--color-accent)',
-                letterSpacing: projectLabel ? undefined : '0.08em',
-                textTransform: projectLabel ? undefined : 'uppercase',
+                color: 'var(--color-text)',
                 cursor: 'text'
               }}
             >
               {title}
             </span>
+            {waiting && (
+              <span className="attention-pill">
+                <span className="attention-badge attention-badge--inline">!</span>
+                Ti aspetta
+              </span>
+            )}
           </div>
         )}
+        {props.headerExtra}
 
         {/* Menu reso in portale su document.body: esce da overflow/stacking
             della card e sta sopra la sidebar. */}

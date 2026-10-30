@@ -1,6 +1,7 @@
 mod config_dir;
 mod os_integration;
 mod pty;
+mod sessions;
 mod stores;
 mod windows;
 
@@ -28,6 +29,7 @@ pub fn run() {
       os_integration::shell_open_path,
       os_integration::shell_open_url,
       windows::window_is_fullscreen,
+      sessions::agent_sessions,
     ])
     .setup(|app| {
       if cfg!(debug_assertions) {

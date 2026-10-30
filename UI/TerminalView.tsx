@@ -3,6 +3,7 @@ import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import type { ShellKey } from './projects'
+import { attachView, hasExited, hasSession, onSessionExit, readBuffer, sendInput, startSession } from './terminalHub'
 
 /** Dimensione font terminali, fissa (non piu configurabile). */
 const TERMINAL_FONT_SIZE = 12.5
@@ -72,9 +73,6 @@ export default function TerminalView(props: TerminalViewProps): React.ReactEleme
     startupCommand: props.startupCommand,
     closeOnExit: props.closeOnExit
   })
-  // Callback sempre aggiornata (senza rieseguire l'effetto di mount).
-  const onProcessExitRef = useRef(props.onProcessExit)
-  onProcessExitRef.current = props.onProcessExit
 
   useEffect(() => {
     const host = hostRef.current
@@ -127,29 +125,33 @@ export default function TerminalView(props: TerminalViewProps): React.ReactEleme
 
     const s = spawnRef.current
     const api = window.dashai.terminal
-    const offData = api.onData(termId, (data) => term.write(data))
-    const offExit = api.onExit(termId, () => {
-      if (s.closeOnExit) {
-        // Comando finito: chiudi la card.
-        onProcessExitRef.current?.()
-      } else {
-        term.write('\r\n\x1b[38;5;244m[processo terminato]\x1b[0m\r\n')
-      }
+    const exitNote = '\r\n\x1b[38;5;244m[processo terminato]\x1b[0m\r\n'
+
+    // La sessione vive nel registro delle chat, non nella vista: alla prima
+    // apertura la si avvia, ai rimontaggi successivi (chat tornata visibile) si
+    // riscrive l'output conservato e si riprende ad ascoltare.
+    if (!hasSession(termId)) {
+      startSession({
+        id: termId,
+        cols: term.cols,
+        rows: term.rows,
+        shell: s.shell,
+        shellPath: s.shellPath,
+        cwd: s.cwd,
+        startupCommand: s.startupCommand,
+        closeOnExit: s.closeOnExit
+      })
+    } else {
+      term.write(readBuffer(termId))
+      if (hasExited(termId) && !s.closeOnExit) term.write(exitNote)
+    }
+    const offData = attachView(termId, (data) => term.write(data))
+    // Con "chiudi al termine" è App a togliere la chat; qui solo la nota.
+    const offExit = onSessionExit((id) => {
+      if (id === termId && !s.closeOnExit) term.write(exitNote)
     })
 
-    // Crea la shell con le dimensioni iniziali calcolate dal fit.
-    void api.create({
-      id: termId,
-      cols: term.cols,
-      rows: term.rows,
-      shell: s.shell,
-      shellPath: s.shellPath,
-      cwd: s.cwd,
-      startupCommand: s.startupCommand,
-      closeOnExit: s.closeOnExit
-    })
-
-    const offInput = term.onData((data) => api.input(termId, data))
+    const offInput = term.onData((data) => sendInput(termId, data))
 
     // Ridimensiona la pty quando il contenitore (card/riga) cambia size.
     // Se l'host è nascosto (0px, es. card compressa) non fare nulla:

@@ -22,17 +22,29 @@
         "fullscreen": false,
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
-        "backgroundColor": "#191919",
-        "dragDropEnabled": false
+        "backgroundColor": "#00000000",
+        "dragDropEnabled": false,
+        "transparent": true,
+        "windowEffects": {
+          "effects": [
+            "acrylic",
+            "sidebar"
+          ]
+        }
       }
     ],
     "security": {
       "csp": null
-    }
+    },
+    "macOSPrivateApi": true
   },
   "bundle": {
     "active": true,
-    "targets": ["dmg", "nsis", "appimage"],
+    "targets": [
+      "dmg",
+      "nsis",
+      "appimage"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

@@ -12,6 +12,8 @@ import {
 } from './projects'
 import { ICON_NAMES, Icon, type IconName } from './icons'
 import { useOverlayDismiss } from './useOverlayDismiss'
+import { AGENT_COMMAND, AGENT_KEYS, AGENT_LABEL, AgentLogo, type AgentKey } from './agents'
+import Toggle from './Toggle'
 
 export interface ProjectEditorModalProps {
   project: Project
@@ -37,6 +39,10 @@ export default function ProjectEditorModal(props: ProjectEditorModalProps): Reac
     }))
   const addCommand = (): void =>
     setDraft((d) => ({ ...d, commands: [...d.commands, makeCommand()] }))
+  // Agenti mostrati nel menu del progetto (assente = tutti).
+  const enabledAgents = draft.agents ?? AGENT_KEYS
+  const toggleAgent = (a: AgentKey): void =>
+    set('agents', enabledAgents.includes(a) ? enabledAgents.filter((x) => x !== a) : AGENT_KEYS.filter((x) => x === a || enabledAgents.includes(x)))
   const removeCommand = (id: string): void =>
     setDraft((d) => ({ ...d, commands: d.commands.filter((c) => c.id !== id) }))
 
@@ -60,7 +66,7 @@ export default function ProjectEditorModal(props: ProjectEditorModalProps): Reac
           style={{
             display: 'flex',
             flexDirection: 'column',
-            gap: 'var(--space-5)',
+            gap: 'var(--space-7)',
             overflowY: 'auto',
             paddingBottom: 'var(--space-3)',
             // Riserva il gutter della barra su entrambi i lati: il contenuto
@@ -70,7 +76,7 @@ export default function ProjectEditorModal(props: ProjectEditorModalProps): Reac
         >
           {/* Sezione: Progetto */}
           <section style={sectionStyle}>
-            <div style={sectionTitleStyle}>Progetto</div>
+            <div style={sectionTitleStyle}>Generale</div>
             <label style={fieldStyle}>
               <span style={labelStyle}>Nome del progetto</span>
               <input
@@ -115,11 +121,31 @@ export default function ProjectEditorModal(props: ProjectEditorModalProps): Reac
             </label>
           </section>
 
-          {/* Sezione: Terminali lanciabili dalla sidebar (shell scelta per singolo comando) */}
+          {/* Sezione: Agenti mostrati nel menu del progetto */}
           <section style={sectionStyle}>
-            <div style={sectionTitleStyle}>Terminali</div>
+            <div style={sectionTitleStyle}>Agenti</div>
+            <span style={hintStyle}>Quali agenti compaiono nel menu del progetto.</span>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {AGENT_KEYS.map((a, i) => (
+                <div key={a} style={{ ...rowStyle, borderBottom: i < AGENT_KEYS.length - 1 ? '1px solid var(--color-divider)' : 'none' }}>
+                  <AgentLogo agent={a} size={18} color="var(--color-neutral-300)" />
+                  <span style={{ flex: '1 1 auto', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <span style={{ fontSize: 13, color: 'var(--color-text)' }}>{AGENT_LABEL[a]}</span>
+                    <span style={{ fontSize: 12, color: 'var(--color-neutral-500)', fontFamily: 'ui-monospace, Menlo, Consolas, monospace' }}>
+                      {AGENT_COMMAND[a]}
+                    </span>
+                  </span>
+                  <Toggle on={enabledAgents.includes(a)} onChange={() => toggleAgent(a)} label={AGENT_LABEL[a]} />
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* Sezione: comandi lanciabili dal menu del progetto (shell scelta per singolo comando) */}
+          <section style={sectionStyle}>
+            <div style={sectionTitleStyle}>Comandi</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-              <span style={{ ...labelStyle, flex: '1 1 auto' }}>Terminali del progetto</span>
+              <span style={{ ...hintStyle, flex: '1 1 auto' }}>Si lanciano dal menu del progetto, nella sezione «Comandi».</span>
               <button type="button" className="btn btn--ghost" onClick={addCommand} style={btnBase}>
                 <Plus size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />
                 Aggiungi
@@ -127,7 +153,7 @@ export default function ProjectEditorModal(props: ProjectEditorModalProps): Reac
             </div>
             {draft.commands.length === 0 && (
               <span style={hintStyle}>
-                Nessun terminale. Aggiungine uno per lanciarlo con un clic dalla sidebar.
+                Nessun comando. Aggiungine uno per lanciarlo con un clic dal menu del progetto.
               </span>
             )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
@@ -513,10 +539,14 @@ const dialogStyle: CSSProperties = {
 const sectionStyle: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
+  gap: 'var(--space-4)'
+}
+/** Riga di un elenco (agenti): la linea sotto separa le righe. */
+const rowStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
   gap: 'var(--space-4)',
-  padding: 'var(--space-4)',
-  border: '1px solid var(--color-divider)',
-  borderRadius: 'var(--radius-md)'
+  padding: 'var(--space-3) 0'
 }
 const sectionTitleStyle: CSSProperties = {
   fontSize: 11,

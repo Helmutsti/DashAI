@@ -1,4 +1,5 @@
 import type { ShellKey } from './projects'
+import type { IconName } from './icons'
 
 export interface Column {
   /** id stabile per l'intera vita della scheda: lega la sessione terminale a
@@ -11,6 +12,8 @@ export interface Column {
   /** tipo di card: terminale (default) o editor di prompt testuale. */
   kind?: 'terminal' | 'prompt'
   title: string
+  /** icona del comando che ha aperto la chat (se non è un agente riconosciuto) */
+  icon?: IconName
   color: string
   /** configurazione di spawn della shell (per-card, snapshot alla creazione) */
   shell?: ShellKey
@@ -28,6 +31,12 @@ export interface Column {
   content?: string
   /** card compressa (solo intestazione visibile) */
   collapsed?: boolean
+  /** (chat di un agente) id della sessione ufficiale di Claude Code / Codex */
+  sessionId?: string
+  /** quando è partita la chat (ms): serve a riconoscere la sua sessione */
+  startedAt?: number
+  /** titolo scelto a mano: non va sostituito dal nome della sessione */
+  titleLocked?: boolean
 }
 
 export interface Row {
@@ -40,7 +49,8 @@ export interface Row {
 let colSeq = 0
 export function newColId(): string {
   colSeq += 1
-  return `term-${colSeq}`
+  // Unico anche fra un avvio e l'altro: le chat attive sopravvivono al riavvio.
+  return `term-${Date.now().toString(36)}-${colSeq}`
 }
 
 export const NAV_ITEMS = ['Dashboard', 'Progetti', 'Archivio']

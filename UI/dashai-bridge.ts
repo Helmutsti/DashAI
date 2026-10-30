@@ -13,6 +13,15 @@ export interface CreateOpts {
   closeOnExit?: boolean
 }
 
+export interface AgentSession {
+  agent: 'claude' | 'codex'
+  id: string
+  title: string
+  /** ultima modifica, ms dall'epoca */
+  updated: number
+  messages: number | null
+}
+
 // registra un listener asincrono (Tauri) dietro una firma di disiscrizione
 // sincrona, per restare compatibile con il contratto usato oggi dal renderer.
 function subscribe<T>(event: string, onEvent: (payload: T) => void): () => void {
@@ -84,6 +93,8 @@ export function createDashaiBridge() {
     openInFileManager: (path: string): Promise<boolean> => invoke('shell_open_path', { path }),
     openUrl: (url: string): Promise<boolean> => invoke('shell_open_url', { url }),
     isFullScreen: (): Promise<boolean> => invoke('window_is_fullscreen'),
+    /** sessioni passate di Claude Code e Codex per una cartella */
+    agentSessions: (cwd: string): Promise<AgentSession[]> => invoke('agent_sessions', { cwd }),
     onFullScreenChange: (cb: (isFullScreen: boolean) => void): (() => void) =>
       subscribe<boolean>('dashai:fullscreen', cb)
   }

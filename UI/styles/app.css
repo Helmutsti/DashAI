@@ -10,6 +10,20 @@ body,
   height: 100%;
   background: var(--color-bg);
 }
+
+/* Finestra trasparente: lo sfondo dell'app lascia passare l'effetto nativo
+   (Mica/Acrylic su Windows, vibrancy su macOS); le chat restano più piene. */
+:root {
+  --app-bg: var(--color-bg);
+}
+:root[data-transparent='on'] {
+  --app-bg: color-mix(in srgb, var(--color-bg) 45%, transparent);
+}
+:root[data-transparent='on'],
+:root[data-transparent='on'] body,
+:root[data-transparent='on'] #root {
+  background: transparent;
+}
 body {
   font-family: var(--font-body);
   color: var(--color-text);
@@ -67,13 +81,183 @@ input:focus {
   color: var(--color-accent);
 }
 
-/* Tinta tenue del colore progetto sull'intero item (var per-progetto inline). */
-.project-row {
-  background: color-mix(in srgb, var(--proj-tint, transparent) 14%, transparent);
+/* Riga progetto compatta: il colore del progetto vive solo nel pallino; la
+   riga si schiarisce al passaggio del mouse o col menu aperto, e solo allora
+   compaiono cartella e ingranaggio. */
+.project-row:hover,
+.project-row.is-open {
+  background: color-mix(in srgb, var(--color-text) 6%, transparent);
 }
-.project-row:hover {
-  background: color-mix(in srgb, var(--proj-tint, var(--color-text)) 26%, transparent);
+.project-row .row-actions {
+  visibility: hidden;
 }
+.project-row:hover .row-actions,
+.project-row.is-open .row-actions {
+  visibility: visible;
+}
+/* Bordo destro della barra laterale: si trascina per cambiarne la larghezza */
+.sidebar-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: -6px;
+  width: 8px;
+  cursor: col-resize;
+  z-index: 3;
+}
+.sidebar-resizer:hover,
+.sidebar-resizer:active {
+  background: linear-gradient(to right, transparent 3px, var(--color-divider) 3px, var(--color-divider) 4px, transparent 4px);
+}
+
+/* --- Chat attive --- */
+.chats-handle {
+  position: relative;
+  height: 14px;
+  flex: 0 0 auto;
+  cursor: row-resize;
+}
+.chats-handle-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 6.5px;
+  height: 1px;
+  background: var(--color-divider);
+}
+.chats-handle-grip {
+  position: absolute;
+  left: 50%;
+  top: 5px;
+  width: 28px;
+  height: 4px;
+  margin-left: -14px;
+  border-radius: 2px;
+  background: var(--color-neutral-700);
+}
+.chats-handle:hover .chats-handle-line,
+.chats-handle:hover .chats-handle-grip,
+.chats-handle:active .chats-handle-line,
+.chats-handle:active .chats-handle-grip {
+  background: var(--color-accent);
+}
+
+.chat-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  min-width: 0;
+}
+.chat-row-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text);
+}
+.chat-row:hover {
+  background: color-mix(in srgb, var(--color-text) 6%, transparent);
+}
+.chat-row.is-visible {
+  background: color-mix(in srgb, var(--color-accent) 6%, transparent);
+}
+.chat-row.is-active {
+  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+}
+/* Ti aspetta: tutta la riga arancione con «!» */
+.chat-row.is-waiting {
+  background: color-mix(in srgb, var(--color-attention) 14%, transparent);
+}
+.chat-row.is-waiting .chat-row-title {
+  color: var(--color-attention);
+}
+.chat-row-close {
+  display: none;
+  width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  color: var(--color-neutral-400);
+  flex: 0 0 auto;
+}
+.chat-row:hover .chat-row-close {
+  display: flex;
+}
+.chat-row:hover .attention-badge {
+  display: none;
+}
+.chat-row-close:hover {
+  background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+  color: var(--color-accent);
+}
+
+.attention-badge {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--color-attention);
+  color: var(--color-surface);
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+.attention-pill {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 2px var(--space-3) 2px 2px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-attention) 16%, transparent);
+  color: var(--color-attention);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.attention-badge--inline {
+  width: 14px;
+  height: 14px;
+  font-size: 10px;
+}
+.attention-badge--small {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 13px;
+  height: 13px;
+  font-size: 9px;
+}
+
+.rail-chat {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.rail-chat:hover,
+.rail-chat.is-active {
+  background: color-mix(in srgb, var(--color-text) 8%, transparent);
+}
+.rail-chat.is-waiting {
+  background: color-mix(in srgb, var(--color-attention) 16%, transparent);
+}
+
 .cmd-row:hover {
   background: color-mix(in srgb, var(--color-accent) 10%, transparent);
 }

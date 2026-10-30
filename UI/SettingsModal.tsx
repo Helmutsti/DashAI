@@ -10,6 +10,7 @@ import {
 } from './SettingsContext'
 import type { Language } from './i18n'
 import { normalizeProjects, normalizePrompts, type Project, type Prompt } from './projects'
+import Toggle from './Toggle'
 import { useOverlayDismiss } from './useOverlayDismiss'
 
 export interface SettingsModalProps {
@@ -29,6 +30,8 @@ export interface SettingsModalProps {
 export default function SettingsModal(props: SettingsModalProps): React.ReactElement {
   const { settings, update, t } = useSettings()
   const [msg, setMsg] = useState<string | null>(null)
+  // Pagina scelta nel menu a sinistra.
+  const [page, setPage] = useState<'appearance' | 'data' | 'shortcuts'>('appearance')
   const overlayDismiss = useOverlayDismiss(props.onClose)
 
   // Versione dal manifest Tauri (tauri.conf.json), la stessa dell'installer.
@@ -106,16 +109,39 @@ export default function SettingsModal(props: SettingsModalProps): React.ReactEle
           </div>
         </div>
 
-        {/* Corpo scrollabile */}
+        {/* Corpo: menu a sinistra, pagina scelta a destra */}
+        <div style={{ flex: '1 1 auto', minHeight: 0, display: 'flex', gap: 'var(--space-7)' }}>
+        <nav style={{ flex: '0 0 160px', display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
+          {(['appearance', 'data', 'shortcuts'] as const).map((key) => (
+            <div
+              key={key}
+              className="settings-row"
+              onClick={() => setPage(key)}
+              style={{
+                padding: 'var(--space-2) var(--space-3)',
+                borderRadius: 'var(--radius-md)',
+                fontSize: 13,
+                cursor: 'pointer',
+                color: page === key ? 'var(--color-text)' : 'var(--color-neutral-300)',
+                background: page === key ? 'color-mix(in srgb, var(--color-accent) 10%, transparent)' : undefined
+              }}
+            >
+              {t(`settings.section.${key}`)}
+            </div>
+          ))}
+        </nav>
         <div
           style={{
+            flex: '1 1 auto',
+            minWidth: 0,
             display: 'flex',
             flexDirection: 'column',
-            gap: 'var(--space-5)',
+            gap: 'var(--space-7)',
             overflowY: 'auto'
           }}
         >
-          {/* Sezione: Aspetto */}
+          {/* Pagina: Aspetto */}
+          {page === 'appearance' && (
           <section style={sectionStyle}>
             <div style={sectionTitleStyle}>{t('settings.section.appearance')}</div>
 
@@ -173,9 +199,22 @@ export default function SettingsModal(props: SettingsModalProps): React.ReactEle
               <span style={hintStyle}>{t('settings.layout.reset.hint')}</span>
             </div>
 
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
+              <div style={{ flex: '1 1 auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <span style={labelStyle}>{t('settings.transparency')}</span>
+                <span style={hintStyle}>{t('settings.transparency.hint')}</span>
+              </div>
+              <Toggle
+                on={settings.transparency}
+                onChange={(v) => update({ transparency: v })}
+                label={t('settings.transparency')}
+              />
+            </div>
           </section>
+          )}
 
-          {/* Sezione: Progetti e dati */}
+          {/* Pagina: Progetti e dati */}
+          {page === 'data' && (
           <section style={sectionStyle}>
             <div style={sectionTitleStyle}>{t('settings.section.data')}</div>
             <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
@@ -203,8 +242,10 @@ export default function SettingsModal(props: SettingsModalProps): React.ReactEle
               <span style={{ ...hintStyle, color: 'var(--color-neutral-300)' }}>{msg}</span>
             )}
           </section>
+          )}
 
           {/* Sezione: Scorciatoie — promemoria, non sono configurabili. */}
+          {page === 'shortcuts' && (
           <section style={sectionStyle}>
             <div style={sectionTitleStyle}>{t('settings.section.shortcuts')}</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
@@ -241,12 +282,14 @@ export default function SettingsModal(props: SettingsModalProps): React.ReactEle
             </div>
             <span style={hintStyle}>{t('settings.shortcuts.hint')}</span>
           </section>
+          )}
 
           {version && (
             <div style={versionStyle}>
               {t('settings.version')} {version}
             </div>
           )}
+        </div>
         </div>
 
         {/* Azioni */}
@@ -343,7 +386,8 @@ const overlayStyle: CSSProperties = {
   padding: 'var(--space-6)'
 }
 const dialogStyle: CSSProperties = {
-  width: 'min(460px, 100%)',
+  width: 'min(720px, 100%)',
+  height: 'min(560px, 86vh)',
   maxHeight: '86vh',
   background: 'var(--color-surface)',
   boxShadow: 'var(--shadow-lg)',
@@ -356,10 +400,7 @@ const dialogStyle: CSSProperties = {
 const sectionStyle: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
-  gap: 'var(--space-4)',
-  padding: 'var(--space-4)',
-  border: '1px solid var(--color-divider)',
-  borderRadius: 'var(--radius-md)'
+  gap: 'var(--space-5)'
 }
 const sectionTitleStyle: CSSProperties = {
   fontSize: 11,

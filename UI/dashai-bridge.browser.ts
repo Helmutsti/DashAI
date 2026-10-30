@@ -1,4 +1,4 @@
-import type { CreateOpts } from './dashai-bridge'
+import type { AgentSession, CreateOpts } from './dashai-bridge'
 import { makeProject, PROJECTS_VERSION, type ProjectsFile } from './projects'
 
 /**
@@ -62,6 +62,13 @@ export function createBrowserBridge() {
       return Promise.resolve(true)
     },
     isFullScreen: (): Promise<boolean> => Promise.resolve(false),
+    // Anteprima: qualche sessione finta per vedere l'elenco "Riprendi".
+    agentSessions: (_cwd: string): Promise<AgentSession[]> =>
+      Promise.resolve([
+        { agent: 'claude', id: 'demo-1', title: 'Rifai il login con OAuth', updated: Date.now() - 3600e3, messages: 38 },
+        { agent: 'codex', id: 'demo-2', title: 'Scrivi i test per il carrello', updated: Date.now() - 5 * 3600e3, messages: null },
+        { agent: 'claude', id: 'demo-3', title: 'Sistema il layout della pagina prodotto su mobile', updated: Date.now() - 30 * 3600e3, messages: 54 }
+      ]),
     onFullScreenChange: (): (() => void) => () => {}
   }
 }

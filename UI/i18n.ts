@@ -12,16 +12,34 @@ type Dict = Record<string, string>
 const it: Dict = {
   'nav.settings': 'Impostazioni',
 
+  'sidebar.projects': 'Progetti',
+  'sidebar.collapse': 'Chiudi la barra laterale',
+  'sidebar.expand': 'Apri la barra laterale',
+  'sidebar.activeChats': 'Chat attive',
+  'sidebar.newChat': 'Nuova chat',
+  'empty.title': 'Nessuna chat da guardare',
+  'empty.hint': 'Scegli una chat attiva a sinistra, oppure lancia un agente da un progetto.',
+  'sidebar.newProject': 'Nuovo progetto',
+  'sidebar.reorder': 'Riordina progetti',
+  'sidebar.reorderDone': 'Fine riordino',
+  'project.openFolder': 'Apri cartella progetto',
+  'project.configure': 'Configura progetto',
+  'project.menu.commands': 'Comandi',
+  'project.menu.empty': 'Nessun comando: aggiungilo dall’ingranaggio.',
+
   'prompts.title': 'Prompt',
   'prompts.new': 'nuovo prompt',
   'prompts.newCard': 'Nuovo prompt',
   'prompts.delete': 'Elimina prompt',
+  'prompts.copied': 'Copiato',
 
   'settings.title': 'Impostazioni',
   'settings.close': 'Chiudi',
   'settings.done': 'Fatto',
 
   'settings.section.appearance': 'Aspetto',
+  'settings.transparency': 'Trasparenza della finestra',
+  'settings.transparency.hint': 'Lascia intravedere il desktop dietro la barra laterale. Vale dal prossimo avvio se la finestra resta scura.',
   'settings.section.data': 'Progetti e dati',
   'settings.section.shortcuts': 'Scorciatoie',
 
@@ -63,16 +81,34 @@ const it: Dict = {
 const en: Dict = {
   'nav.settings': 'Settings',
 
+  'sidebar.projects': 'Projects',
+  'sidebar.collapse': 'Hide the sidebar',
+  'sidebar.expand': 'Show the sidebar',
+  'sidebar.activeChats': 'Active chats',
+  'sidebar.newChat': 'New chat',
+  'empty.title': 'No chat to show',
+  'empty.hint': 'Pick an active chat on the left, or launch an agent from a project.',
+  'sidebar.newProject': 'New project',
+  'sidebar.reorder': 'Reorder projects',
+  'sidebar.reorderDone': 'Done reordering',
+  'project.openFolder': 'Open project folder',
+  'project.configure': 'Project settings',
+  'project.menu.commands': 'Commands',
+  'project.menu.empty': 'No commands yet: add one from the gear.',
+
   'prompts.title': 'Prompts',
   'prompts.new': 'new prompt',
   'prompts.newCard': 'New prompt',
   'prompts.delete': 'Delete prompt',
+  'prompts.copied': 'Copied',
 
   'settings.title': 'Settings',
   'settings.close': 'Close',
   'settings.done': 'Done',
 
   'settings.section.appearance': 'Appearance',
+  'settings.transparency': 'Window transparency',
+  'settings.transparency.hint': 'Lets the desktop show through behind the sidebar. Applies on next launch if the window stays dark.',
   'settings.section.data': 'Projects & data',
   'settings.section.shortcuts': 'Shortcuts',
 

@@ -15,6 +15,8 @@ export interface AppSettings {
   language: Language
   theme: ThemeChoice
   gridOrientation: GridOrientation
+  /** finestra semitrasparente e sfocata (Mica/Acrylic su Windows, vibrancy su macOS) */
+  transparency: boolean
 }
 
 export const SETTINGS_VERSION = 1
@@ -23,7 +25,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   version: SETTINGS_VERSION,
   language: 'it',
   theme: 'dark',
-  gridOrientation: 'rows'
+  gridOrientation: 'rows',
+  transparency: true
 }
 
 interface SettingsContextValue {
@@ -52,6 +55,7 @@ function resolveTheme(theme: ThemeChoice): 'dark' | 'light' {
 function applyToDocument(settings: AppSettings): void {
   const root = document.documentElement
   root.dataset.theme = resolveTheme(settings.theme)
+  root.dataset.transparent = settings.transparency ? 'on' : 'off'
 }
 
 function normalize(raw: unknown): AppSettings {
@@ -60,7 +64,8 @@ function normalize(raw: unknown): AppSettings {
     version: SETTINGS_VERSION,
     language: r.language === 'en' ? 'en' : 'it',
     theme: r.theme === 'light' || r.theme === 'system' ? r.theme : 'dark',
-    gridOrientation: r.gridOrientation === 'columns' ? 'columns' : 'rows'
+    gridOrientation: r.gridOrientation === 'columns' ? 'columns' : 'rows',
+    transparency: r.transparency !== false
   }
 }
 
