@@ -5,6 +5,7 @@ import { AGENT_KEYS, AGENT_LABEL, AgentLogo, type AgentKey } from './agents'
 import type { AgentSession } from './dashai-bridge'
 import { Icon } from './icons'
 import type { Project, QuickCommand } from './projects'
+import { useSettings } from './SettingsContext'
 
 export interface ProjectMenuProps {
   project: Project
@@ -42,7 +43,8 @@ export default function ProjectMenu(props: ProjectMenuProps): React.ReactElement
     const top = r.bottom + 4
     setPos({ top, left: r.left + 12, maxHeight: window.innerHeight - top - 12 })
   }, [view])
-  const agents = AGENT_KEYS.filter((a) => (project.agents ?? AGENT_KEYS).includes(a))
+  const { settings } = useSettings()
+  const agents = AGENT_KEYS.filter((a) => settings.agents[a].enabled)
 
   useEffect(() => {
     if (view !== 'sessions' || sessions) return

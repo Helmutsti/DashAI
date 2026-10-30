@@ -10,10 +10,7 @@ import {
   type ShellKey,
   type ShellOption
 } from './projects'
-import { ICON_NAMES, Icon, type IconName } from './icons'
 import { useOverlayDismiss } from './useOverlayDismiss'
-import { AGENT_COMMAND, AGENT_KEYS, AGENT_LABEL, AgentLogo, type AgentKey } from './agents'
-import Toggle from './Toggle'
 
 export interface ProjectEditorModalProps {
   project: Project
@@ -39,10 +36,6 @@ export default function ProjectEditorModal(props: ProjectEditorModalProps): Reac
     }))
   const addCommand = (): void =>
     setDraft((d) => ({ ...d, commands: [...d.commands, makeCommand()] }))
-  // Agenti mostrati nel menu del progetto (assente = tutti).
-  const enabledAgents = draft.agents ?? AGENT_KEYS
-  const toggleAgent = (a: AgentKey): void =>
-    set('agents', enabledAgents.includes(a) ? enabledAgents.filter((x) => x !== a) : AGENT_KEYS.filter((x) => x === a || enabledAgents.includes(x)))
   const removeCommand = (id: string): void =>
     setDraft((d) => ({ ...d, commands: d.commands.filter((c) => c.id !== id) }))
 
@@ -74,7 +67,7 @@ export default function ProjectEditorModal(props: ProjectEditorModalProps): Reac
             scrollbarGutter: 'stable both-edges'
           }}
         >
-          {/* Sezione: Progetto */}
+          {/* Sezione: Generale */}
           <section style={sectionStyle}>
             <div style={sectionTitleStyle}>Generale</div>
             <label style={fieldStyle}>
@@ -87,102 +80,92 @@ export default function ProjectEditorModal(props: ProjectEditorModalProps): Reac
                 style={controlStyle}
               />
             </label>
-            <div style={fieldStyle}>
-              <span style={labelStyle}>Colore</span>
-              <ColorDots value={draft.color} onPick={(c) => set('color', c)} />
-            </div>
-            <label style={fieldStyle}>
-              <span style={labelStyle}>Cartella</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-                <input
-                  type="text"
-                  value={draft.cwd}
-                  placeholder="percorso della cartella"
-                  onChange={(e) => set('cwd', e.target.value)}
-                  style={{ ...controlStyle, flex: '1 1 auto' }}
-                />
-                <button
-                  type="button"
-                  className="btn btn--ghost"
-                  onClick={async () => {
-                    try {
-                      const dir = await window.dashai.pickDirectory()
-                      if (dir) set('cwd', dir)
-                    } catch (err) {
-                      console.error('Impossibile aprire il selettore cartella', err)
-                    }
-                  }}
-                  style={{ ...btnBase, whiteSpace: 'nowrap' }}
-                >
-                  <FolderOpen size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />
-                  Scegli
-                </button>
+            {/* Colore e cartella sulla stessa riga: il colore è solo un pallino */}
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 'var(--space-4)' }}>
+              <div style={fieldStyle}>
+                <span style={labelStyle}>Colore</span>
+                <ColorDropdown value={draft.color} onPick={(c) => set('color', c)} />
               </div>
-            </label>
-          </section>
-
-          {/* Sezione: Agenti mostrati nel menu del progetto */}
-          <section style={sectionStyle}>
-            <div style={sectionTitleStyle}>Agenti</div>
-            <span style={hintStyle}>Quali agenti compaiono nel menu del progetto.</span>
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {AGENT_KEYS.map((a, i) => (
-                <div key={a} style={{ ...rowStyle, borderBottom: i < AGENT_KEYS.length - 1 ? '1px solid var(--color-divider)' : 'none' }}>
-                  <AgentLogo agent={a} size={18} color="var(--color-neutral-300)" />
-                  <span style={{ flex: '1 1 auto', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <span style={{ fontSize: 13, color: 'var(--color-text)' }}>{AGENT_LABEL[a]}</span>
-                    <span style={{ fontSize: 12, color: 'var(--color-neutral-500)', fontFamily: 'ui-monospace, Menlo, Consolas, monospace' }}>
-                      {AGENT_COMMAND[a]}
-                    </span>
-                  </span>
-                  <Toggle on={enabledAgents.includes(a)} onChange={() => toggleAgent(a)} label={AGENT_LABEL[a]} />
+              <label style={{ ...fieldStyle, flex: '1 1 auto', minWidth: 0 }}>
+                <span style={labelStyle}>Cartella</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+                  <input
+                    type="text"
+                    value={draft.cwd}
+                    placeholder="percorso della cartella"
+                    onChange={(e) => set('cwd', e.target.value)}
+                    style={{ ...controlStyle, flex: '1 1 auto', minWidth: 0 }}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn--ghost"
+                    onClick={async () => {
+                      try {
+                        const dir = await window.dashai.pickDirectory()
+                        if (dir) set('cwd', dir)
+                      } catch (err) {
+                        console.error('Impossibile aprire il selettore cartella', err)
+                      }
+                    }}
+                    style={{ ...btnBase, whiteSpace: 'nowrap' }}
+                  >
+                    <FolderOpen size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />
+                    Scegli
+                  </button>
                 </div>
-              ))}
+              </label>
             </div>
           </section>
 
-          {/* Sezione: comandi lanciabili dal menu del progetto (shell scelta per singolo comando) */}
+          {/* Sezione: comandi, come tabella modificabile in riga */}
           <section style={sectionStyle}>
-            <div style={sectionTitleStyle}>Comandi</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-              <span style={{ ...hintStyle, flex: '1 1 auto' }}>Si lanciano dal menu del progetto, nella sezione «Comandi».</span>
-              <button type="button" className="btn btn--ghost" onClick={addCommand} style={btnBase}>
-                <Plus size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />
-                Aggiungi
-              </button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <div style={sectionTitleStyle}>Comandi</div>
+              <span style={hintStyle}>Si lanciano dal menu del progetto.</span>
             </div>
-            {draft.commands.length === 0 && (
-              <span style={hintStyle}>
-                Nessun comando. Aggiungine uno per lanciarlo con un clic dal menu del progetto.
-              </span>
-            )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+              {draft.commands.length > 0 && (
+                <div style={tableRowStyle}>
+                  <span style={{ ...colHeadStyle, flex: '0 0 150px' }}>Nome</span>
+                  <span style={{ ...colHeadStyle, flex: '1 1 auto' }}>Comando</span>
+                  <span style={{ ...colHeadStyle, flex: '0 0 110px' }}>Shell</span>
+                  <span style={{ ...colHeadStyle, flex: '0 0 22px' }} title="Chiudi al termine">Fine</span>
+                  <span style={{ flex: '0 0 30px' }} />
+                </div>
+              )}
               {draft.commands.map((cmd) => (
-                <div
-                  key={cmd.id}
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 'var(--space-2)',
-                    padding: 'var(--space-3)',
-                    border: '1px solid var(--color-divider)',
-                    borderRadius: 'var(--radius-md)'
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-                    <IconDropdown value={cmd.icon} onPick={(n) => setCommand(cmd.id, { icon: n })} />
+                <div key={cmd.id} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+                  <div style={tableRowStyle}>
                     <input
                       type="text"
                       value={cmd.label}
-                      placeholder="Label"
+                      placeholder="Nome"
                       onChange={(e) => setCommand(cmd.id, { label: e.target.value })}
-                      style={{ ...controlStyle, flex: '1 1 auto' }}
+                      style={{ ...controlStyle, flex: '0 0 150px', width: 150 }}
                     />
-                    <ShellDropdown
-                      options={shellOptions}
-                      value={cmd.shell}
-                      onPick={(s) => setCommand(cmd.id, { shell: s })}
+                    <input
+                      type="text"
+                      value={cmd.command}
+                      placeholder="es. npm run dev"
+                      onChange={(e) => setCommand(cmd.id, { command: e.target.value })}
+                      style={{ ...controlStyle, ...monoStyle, flex: '1 1 auto', minWidth: 0 }}
                     />
+                    <div style={{ flex: '0 0 110px', display: 'flex' }}>
+                      <ShellDropdown
+                        options={shellOptions}
+                        value={cmd.shell}
+                        onPick={(s) => setCommand(cmd.id, { shell: s })}
+                      />
+                    </div>
+                    <span style={{ flex: '0 0 22px', display: 'flex', justifyContent: 'center' }}>
+                      <input
+                        type="checkbox"
+                        title="Chiudi al termine"
+                        checked={cmd.closeOnExit}
+                        onChange={(e) => setCommand(cmd.id, { closeOnExit: e.target.checked })}
+                        style={{ accentColor: 'var(--color-accent)', cursor: 'pointer', margin: 0 }}
+                      />
+                    </span>
                     <button
                       type="button"
                       className="menu-item menu-item--danger"
@@ -193,17 +176,6 @@ export default function ProjectEditorModal(props: ProjectEditorModalProps): Reac
                       <Trash size={16} />
                     </button>
                   </div>
-                  <input
-                    type="text"
-                    value={cmd.command}
-                    placeholder="comando da eseguire, es. npm run dev"
-                    onChange={(e) => setCommand(cmd.id, { command: e.target.value })}
-                    style={{
-                      ...controlStyle,
-                      fontFamily: 'ui-monospace, Menlo, Consolas, monospace',
-                      fontSize: 12
-                    }}
-                  />
                   {cmd.shell === 'custom' && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
                       <input
@@ -211,12 +183,7 @@ export default function ProjectEditorModal(props: ProjectEditorModalProps): Reac
                         value={cmd.shellPath ?? ''}
                         placeholder="Percorso eseguibile shell, es. /opt/homebrew/bin/nu"
                         onChange={(e) => setCommand(cmd.id, { shellPath: e.target.value })}
-                        style={{
-                          ...controlStyle,
-                          flex: '1 1 auto',
-                          fontFamily: 'ui-monospace, Menlo, Consolas, monospace',
-                          fontSize: 12
-                        }}
+                        style={{ ...controlStyle, ...monoStyle, flex: '1 1 auto' }}
                       />
                       <button
                         type="button"
@@ -236,26 +203,12 @@ export default function ProjectEditorModal(props: ProjectEditorModalProps): Reac
                       </button>
                     </div>
                   )}
-                  <label
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 'var(--space-2)',
-                      fontSize: 12.5,
-                      color: 'var(--color-neutral-300)',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={cmd.closeOnExit}
-                      onChange={(e) => setCommand(cmd.id, { closeOnExit: e.target.checked })}
-                      style={{ accentColor: 'var(--color-accent)', cursor: 'pointer' }}
-                    />
-                    Chiudi al termine
-                  </label>
                 </div>
               ))}
+              <div className="menu-item" onClick={addCommand} style={addRowStyle}>
+                <Plus size={14} color="var(--color-neutral-400)" />
+                Aggiungi comando
+              </div>
             </div>
           </section>
         </div>
@@ -290,92 +243,6 @@ export default function ProjectEditorModal(props: ProjectEditorModalProps): Reac
   )
 }
 
-/** Selettore icona compatto: un pulsante che apre una griglia a comparsa. */
-function IconDropdown({
-  value,
-  onPick
-}: {
-  value: IconName
-  onPick: (n: IconName) => void
-}): React.ReactElement {
-  const [open, setOpen] = useState(false)
-  return (
-    <div style={{ position: 'relative', flex: '0 0 auto' }}>
-      <button
-        type="button"
-        title="Scegli icona"
-        onClick={() => setOpen((o) => !o)}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 4,
-          padding: 'var(--space-2)',
-          border: '1px solid var(--color-divider)',
-          borderRadius: 'var(--radius-md)',
-          background: 'var(--color-bg)',
-          color: 'var(--color-neutral-300)',
-          cursor: 'pointer'
-        }}
-      >
-        <Icon name={value} size={16} />
-        <CaretDown size={10} color="var(--color-neutral-500)" />
-      </button>
-      {open && (
-        <>
-          {/* click-away */}
-          <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
-          <div
-            style={{
-              position: 'absolute',
-              // sempre verso l'alto: sotto il trigger lo spazio è quasi sempre
-              // insufficiente e il pannello verrebbe tagliato dalla colonna che scorre
-              bottom: 'calc(100% + 4px)',
-              left: 0,
-              zIndex: 41,
-              display: 'grid',
-              gridTemplateColumns: 'repeat(6, 1fr)',
-              gap: 'var(--space-1)',
-              padding: 'var(--space-2)',
-              background: 'var(--color-surface)',
-              border: '1px solid var(--color-neutral-700)',
-              borderRadius: 'var(--radius-md)',
-              boxShadow: 'var(--shadow-md)'
-            }}
-          >
-            {ICON_NAMES.map((name) => {
-              const active = value === name
-              return (
-                <button
-                  key={name}
-                  type="button"
-                  title={name}
-                  onClick={() => {
-                    onPick(name)
-                    setOpen(false)
-                  }}
-                  style={{
-                    width: 28,
-                    height: 28,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    borderRadius: 'var(--radius-sm)',
-                    border: `1px solid ${active ? 'var(--color-accent)' : 'transparent'}`,
-                    background: active ? 'color-mix(in srgb, var(--color-accent) 14%, transparent)' : 'transparent',
-                    color: active ? 'var(--color-accent)' : 'var(--color-neutral-300)',
-                    cursor: 'pointer'
-                  }}
-                >
-                  <Icon name={name} size={16} />
-                </button>
-              )
-            })}
-          </div>
-        </>
-      )}
-    </div>
-  )
-}
 
 /** Etichetta breve per il pulsante chiuso (le label complete sono nel menu). */
 function shortShellLabel(key: ShellKey): string {
@@ -401,7 +268,7 @@ function ShellDropdown({
 }): React.ReactElement {
   const [open, setOpen] = useState(false)
   return (
-    <div style={{ position: 'relative', flex: '0 0 auto' }}>
+    <div style={{ position: 'relative', flex: '1 1 auto', display: 'flex' }}>
       <button
         type="button"
         title="Scegli shell"
@@ -410,12 +277,15 @@ function ShellDropdown({
           display: 'flex',
           alignItems: 'center',
           gap: 4,
-          padding: 'var(--space-2) var(--space-3)',
+          flex: '1 1 auto',
+          justifyContent: 'space-between',
+          padding: 'var(--space-3)',
           border: '1px solid var(--color-divider)',
           borderRadius: 'var(--radius-md)',
           background: 'var(--color-bg)',
           color: 'var(--color-neutral-300)',
-          fontSize: 12,
+          fontFamily: 'var(--font-body)',
+          fontSize: 13,
           whiteSpace: 'nowrap',
           cursor: 'pointer'
         }}
@@ -481,36 +351,92 @@ function ShellDropdown({
   )
 }
 
-function ColorDots({
+/** Colore del progetto: un pallino che apre la griglia dei colori. */
+function ColorDropdown({
   value,
   onPick
 }: {
   value: string
   onPick: (c: string) => void
 }): React.ReactElement {
+  const [open, setOpen] = useState(false)
   return (
-    <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--space-3)' }}>
-      {TOP_COLORS.map((color) => {
-        const active = value === color
-        return (
-          <button
-            key={color}
-            type="button"
-            title={color}
-            onClick={() => onPick(color)}
+    <div style={{ position: 'relative', flex: '0 0 auto' }}>
+      <button
+        type="button"
+        title="Colore del progetto"
+        onClick={() => setOpen((o) => !o)}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 'var(--space-2)',
+          padding: 'var(--space-3)',
+          border: '1px solid var(--color-divider)',
+          borderRadius: 'var(--radius-md)',
+          background: 'var(--color-bg)',
+          cursor: 'pointer'
+        }}
+      >
+        <span style={{ width: 14, height: 14, borderRadius: '50%', background: value, flex: '0 0 auto' }} />
+        <CaretDown size={10} color="var(--color-neutral-500)" />
+      </button>
+      {open && (
+        <>
+          <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
+          <div
             style={{
-              width: 14,
-              height: 14,
-              padding: 0,
-              borderRadius: '50%',
-              background: color,
-              border: '2px solid transparent',
-              boxShadow: active ? '0 0 0 1.5px var(--color-surface), 0 0 0 3px var(--color-accent)' : 'none',
-              cursor: 'pointer'
+              position: 'absolute',
+              top: 'calc(100% + 4px)',
+              left: 0,
+              zIndex: 41,
+              display: 'grid',
+              gridTemplateColumns: 'repeat(6, 1fr)',
+              gap: 'var(--space-2)',
+              padding: 'var(--space-3)',
+              background: 'var(--color-surface)',
+              border: '1px solid var(--color-neutral-700)',
+              borderRadius: 'var(--radius-md)',
+              boxShadow: 'var(--shadow-md)'
             }}
-          />
-        )
-      })}
+          >
+            {TOP_COLORS.map((color) => {
+              const active = value === color
+              return (
+                <button
+                  key={color}
+                  type="button"
+                  title={color}
+                  onClick={() => {
+                    onPick(color)
+                    setOpen(false)
+                  }}
+                  style={{
+                    width: 32,
+                    height: 32,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    border: 'none',
+                    borderRadius: 'var(--radius-sm)',
+                    background: active ? 'color-mix(in srgb, var(--color-accent) 12%, transparent)' : 'transparent',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 20,
+                      height: 20,
+                      borderRadius: '50%',
+                      background: color,
+                      boxShadow: active ? '0 0 0 1.5px var(--color-surface), 0 0 0 3px var(--color-accent)' : 'none'
+                    }}
+                  />
+                </button>
+              )
+            })}
+          </div>
+        </>
+      )}
     </div>
   )
 }
@@ -541,12 +467,24 @@ const sectionStyle: CSSProperties = {
   flexDirection: 'column',
   gap: 'var(--space-4)'
 }
-/** Riga di un elenco (agenti): la linea sotto separa le righe. */
-const rowStyle: CSSProperties = {
+/** Riga della tabella dei comandi: le colonne hanno larghezze fisse comuni. */
+const tableRowStyle: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
-  gap: 'var(--space-4)',
-  padding: 'var(--space-3) 0'
+  gap: 'var(--space-3)'
+}
+const colHeadStyle: CSSProperties = { fontSize: 11, color: 'var(--color-neutral-500)' }
+const monoStyle: CSSProperties = { fontFamily: 'ui-monospace, Menlo, Consolas, monospace', fontSize: 12 }
+const addRowStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 'var(--space-3)',
+  padding: 'var(--space-2) var(--space-3)',
+  borderRadius: 'var(--radius-sm)',
+  fontSize: 13,
+  color: 'var(--color-neutral-300)',
+  cursor: 'pointer',
+  alignSelf: 'flex-start'
 }
 const sectionTitleStyle: CSSProperties = {
   fontSize: 11,

@@ -11,6 +11,7 @@ import {
 import type { Language } from './i18n'
 import { normalizeProjects, normalizePrompts, type Project, type Prompt } from './projects'
 import Toggle from './Toggle'
+import { AGENT_KEYS, AGENT_LABEL, AgentLogo } from './agents'
 import { useOverlayDismiss } from './useOverlayDismiss'
 
 export interface SettingsModalProps {
@@ -31,7 +32,7 @@ export default function SettingsModal(props: SettingsModalProps): React.ReactEle
   const { settings, update, t } = useSettings()
   const [msg, setMsg] = useState<string | null>(null)
   // Pagina scelta nel menu a sinistra.
-  const [page, setPage] = useState<'appearance' | 'data' | 'shortcuts'>('appearance')
+  const [page, setPage] = useState<'appearance' | 'agents' | 'data' | 'shortcuts'>('appearance')
   const overlayDismiss = useOverlayDismiss(props.onClose)
 
   // Versione dal manifest Tauri (tauri.conf.json), la stessa dell'installer.
@@ -112,7 +113,7 @@ export default function SettingsModal(props: SettingsModalProps): React.ReactEle
         {/* Corpo: menu a sinistra, pagina scelta a destra */}
         <div style={{ flex: '1 1 auto', minHeight: 0, display: 'flex', gap: 'var(--space-7)' }}>
         <nav style={{ flex: '0 0 160px', display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
-          {(['appearance', 'data', 'shortcuts'] as const).map((key) => (
+          {(['appearance', 'agents', 'data', 'shortcuts'] as const).map((key) => (
             <div
               key={key}
               className="settings-row"
@@ -209,6 +210,46 @@ export default function SettingsModal(props: SettingsModalProps): React.ReactEle
                 onChange={(v) => update({ transparency: v })}
                 label={t('settings.transparency')}
               />
+            </div>
+          </section>
+          )}
+
+          {/* Pagina: Agenti (valgono per tutti i progetti) */}
+          {page === 'agents' && (
+          <section style={sectionStyle}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <div style={sectionTitleStyle}>{t('settings.section.agents')}</div>
+              <span style={hintStyle}>{t('settings.agents.hint')}</span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {AGENT_KEYS.map((a, i) => (
+                <div
+                  key={a}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 'var(--space-4)',
+                    padding: 'var(--space-3) 0',
+                    borderBottom: i < AGENT_KEYS.length - 1 ? '1px solid var(--color-divider)' : 'none'
+                  }}
+                >
+                  <AgentLogo agent={a} size={18} color="var(--color-neutral-300)" />
+                  <div style={{ flex: '1 1 auto', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+                    <span style={labelStyle}>{AGENT_LABEL[a]}</span>
+                    <input
+                      type="text"
+                      value={settings.agents[a].command}
+                      onChange={(e) => update({ agents: { ...settings.agents, [a]: { ...settings.agents[a], command: e.target.value } } })}
+                      style={agentInputStyle}
+                    />
+                  </div>
+                  <Toggle
+                    on={settings.agents[a].enabled}
+                    onChange={(on) => update({ agents: { ...settings.agents, [a]: { ...settings.agents[a], enabled: on } } })}
+                    label={AGENT_LABEL[a]}
+                  />
+                </div>
+              ))}
             </div>
           </section>
           )}
@@ -396,6 +437,15 @@ const dialogStyle: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   gap: 'var(--space-5)'
+}
+const agentInputStyle: CSSProperties = {
+  fontFamily: 'ui-monospace, Menlo, Consolas, monospace',
+  fontSize: 12,
+  color: 'var(--color-text)',
+  background: 'var(--color-bg)',
+  border: '1px solid var(--color-divider)',
+  borderRadius: 'var(--radius-md)',
+  padding: 'var(--space-3)'
 }
 const sectionStyle: CSSProperties = {
   display: 'flex',

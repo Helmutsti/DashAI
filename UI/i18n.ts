@@ -38,6 +38,8 @@ const it: Dict = {
   'settings.done': 'Fatto',
 
   'settings.section.appearance': 'Aspetto',
+  'settings.section.agents': 'Agenti',
+  'settings.agents.hint': 'Quali agenti compaiono nei menu «Nuova chat», per tutti i progetti, e con quale comando partono.',
   'settings.transparency': 'Trasparenza della finestra',
   'settings.transparency.hint': 'Lascia intravedere il desktop dietro la barra laterale. Vale dal prossimo avvio se la finestra resta scura.',
   'settings.section.data': 'Progetti e dati',
@@ -107,6 +109,8 @@ const en: Dict = {
   'settings.done': 'Done',
 
   'settings.section.appearance': 'Appearance',
+  'settings.section.agents': 'Agents',
+  'settings.agents.hint': 'Which agents appear in the "New chat" menus, for every project, and the command that starts them.',
   'settings.transparency': 'Window transparency',
   'settings.transparency.hint': 'Lets the desktop show through behind the sidebar. Applies on next launch if the window stays dark.',
   'settings.section.data': 'Projects & data',

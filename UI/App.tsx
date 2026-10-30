@@ -13,7 +13,7 @@ import Card from './Card'
 import ChatList, { ChatRail } from './ChatList'
 import ProjectMenu from './ProjectMenu'
 import PromptMenu from './PromptMenu'
-import { AGENT_COMMAND, AGENT_LABEL, detectAgent, type AgentKey } from './agents'
+import { AGENT_LABEL, detectAgent, type AgentKey } from './agents'
 import type { AgentSession } from './dashai-bridge'
 import { endSession, onAttention, onSessionExit, onUserInput } from './terminalHub'
 import BrandMark from './BrandMark'
@@ -338,7 +338,7 @@ export default function App(): React.ReactElement {
       title: AGENT_LABEL[agent],
       color: p.color,
       cwd: p.cwd,
-      startupCommand: AGENT_COMMAND[agent],
+      startupCommand: settings.agents[agent].command,
       startedAt: Date.now()
     }, 1, beside)
 
@@ -622,7 +622,7 @@ export default function App(): React.ReactElement {
       title: AGENT_LABEL[agent],
       color: '',
       cwd: '',
-      startupCommand: AGENT_COMMAND[agent],
+      startupCommand: settings.agents[agent].command,
       startedAt: Date.now()
     }, 1, beside)
 

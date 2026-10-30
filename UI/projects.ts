@@ -73,7 +73,15 @@ export const TOP_COLORS = [
   '#009e77', // verde
   '#1069da', // blu
   '#9b75f9', // indaco
-  '#a738a2' // magenta
+  '#a738a2', // magenta
+  // Aggiunti su richiesta (ottobre 2026) per avere più scelta: sono fuori dalla
+  // verifica di separazione descritta sopra, quindi alcune coppie si
+  // somigliano (ciano/blu, rosa/magenta). Scelta consapevole dell'utente.
+  '#0e8fb0', // ciano
+  '#d43f7f', // rosa
+  '#5b9a1e', // lime
+  '#b07d0c', // ocra
+  '#5f7a94' // ardesia
 ]
 
 /** Colore di un progetto appena creato. */

@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Plus } from '@phosphor-icons/react'
 import { AGENT_KEYS, AGENT_LABEL, AgentLogo, type AgentKey } from './agents'
+import { useSettings } from './SettingsContext'
 
 export interface NewChatButtonProps {
   /** 'row': riga in fondo a "Chat attive"; 'icon': pulsante della barra chiusa */
@@ -14,6 +15,7 @@ export interface NewChatButtonProps {
 /** Nuova chat al volo, senza progetto: sceglie l'agente e parte dalla cartella utente. */
 export default function NewChatButton(props: NewChatButtonProps): React.ReactElement {
   const [open, setOpen] = useState(false)
+  const { settings } = useSettings()
   const ref = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState<React.CSSProperties | null>(null)
 
@@ -56,7 +58,7 @@ export default function NewChatButton(props: NewChatButtonProps): React.ReactEle
           <>
             <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 999 }} />
             <div style={{ ...popover, ...(pos ?? { visibility: 'hidden' }) }}>
-              {AGENT_KEYS.map((a) => (
+              {AGENT_KEYS.filter((a) => settings.agents[a].enabled).map((a) => (
                 <div
                   key={a}
                   className="menu-item"

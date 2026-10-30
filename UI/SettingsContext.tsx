@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { translate, type Language } from './i18n'
+import { AGENT_COMMAND, AGENT_KEYS, type AgentKey } from './agents'
 
 export type ThemeChoice = 'dark' | 'light' | 'system'
 
@@ -17,6 +18,20 @@ export interface AppSettings {
   gridOrientation: GridOrientation
   /** finestra semitrasparente e sfocata (Mica/Acrylic su Windows, vibrancy su macOS) */
   transparency: boolean
+  /** agenti mostrati nei menu "Nuova chat" (per tutti i progetti) e loro comando */
+  agents: Record<AgentKey, AgentSetting>
+}
+
+export interface AgentSetting {
+  enabled: boolean
+  command: string
+}
+
+function defaultAgents(): Record<AgentKey, AgentSetting> {
+  return Object.fromEntries(AGENT_KEYS.map((k) => [k, { enabled: true, command: AGENT_COMMAND[k] }])) as Record<
+    AgentKey,
+    AgentSetting
+  >
 }
 
 export const SETTINGS_VERSION = 1
@@ -26,7 +41,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   language: 'it',
   theme: 'dark',
   gridOrientation: 'rows',
-  transparency: true
+  transparency: true,
+  agents: defaultAgents()
 }
 
 interface SettingsContextValue {
@@ -65,7 +81,13 @@ function normalize(raw: unknown): AppSettings {
     language: r.language === 'en' ? 'en' : 'it',
     theme: r.theme === 'light' || r.theme === 'system' ? r.theme : 'dark',
     gridOrientation: r.gridOrientation === 'columns' ? 'columns' : 'rows',
-    transparency: r.transparency !== false
+    transparency: r.transparency !== false,
+    agents: Object.fromEntries(
+      AGENT_KEYS.map((k) => {
+        const a = (r.agents ?? {})[k] as Partial<AgentSetting> | undefined
+        return [k, { enabled: a?.enabled !== false, command: a?.command?.trim() || AGENT_COMMAND[k] }]
+      })
+    ) as Record<AgentKey, AgentSetting>
   }
 }
 
