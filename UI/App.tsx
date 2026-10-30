@@ -475,8 +475,24 @@ export default function App(): React.ReactElement {
   const showChat = (id: string, beside: boolean): void => {
     const visible = rows.some((row) => row.cols.some((c) => c.id === id))
     const col = chats.find((c) => c.id === id)
+    // Già sullo schermo: un clic la toglie dalla vista (resta tra le chat
+    // attive); con Ctrl/Cmd porta solo il fuoco su di lei.
+    if (visible && !beside) {
+      hideChat(id)
+      return
+    }
     if (!visible && col) placeCol({ ...col, collapsed: false }, beside)
     focusCard(id)
+  }
+
+  /** Toglie una chat dallo schermo: la sessione resta viva tra le chat attive. */
+  const hideChat = (id: string): void => {
+    if (activeId === id) setActiveId(cardAfter(id))
+    setRows((s) =>
+      s
+        .map((row) => ({ ...row, cols: row.cols.filter((c) => c.id !== id) }))
+        .filter((row) => row.cols.length > 0)
+    )
   }
 
   /** Chiude davvero una chat: termina la sessione e la toglie ovunque. */
@@ -1501,17 +1517,16 @@ export default function App(): React.ReactElement {
           overflow: 'auto',
           display: 'flex',
           flexDirection: byRows ? 'column' : 'row',
-          padding: 0,
-          // A sidebar chiusa: scosta le card oltre la linguetta (16px, che sborda
-          // dal gutter di var(--space-4)) più un po' di respiro.
-          paddingLeft: collapsed ? 'calc(16px - var(--space-4) + var(--space-3))' : 0
+          // Nessun margine proprio: la distanza dalla barra (aperta o chiusa) è
+          // il gap del contenitore, uguale al margine della finestra.
+          padding: 0
         }}
       >
         {canvasChildren.length > 0 ? (
           canvasChildren
         ) : (
           // Nessuna chat da guardare: un invito, non un'area vuota.
-          <div style={{ flex: '1 1 auto', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-5)', borderRadius: 'var(--radius-lg)', background: 'var(--color-surface)' }}>
+          <div style={{ flex: '1 1 auto', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-5)' }}>
             <Terminal size={32} color="var(--color-neutral-500)" />
             <span style={{ fontFamily: 'var(--font-heading)', fontSize: 16, fontWeight: 600, color: 'var(--color-text)' }}>{t('empty.title')}</span>
             <span style={{ fontSize: 11.5, lineHeight: 1.5, color: 'var(--color-neutral-500)' }}>{t('empty.hint')}</span>

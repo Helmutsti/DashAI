@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom'
 import {
   CaretDown,
   CaretUp,
-  DotsThreeOutline,
   PencilSimple,
   Plus,
   X
@@ -164,22 +163,8 @@ export default function Card(props: CardProps): React.ReactElement {
           cursor: isDragged ? 'grabbing' : 'grab'
         }}
       >
-        <div
-          className="menu-trigger"
-          onClick={props.onToggleMenu}
-          ref={triggerRef}
-          style={{
-            flex: '0 0 auto',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 16,
-            color: 'var(--color-neutral-500)',
-            cursor: 'pointer'
-          }}
-        >
-          <DotsThreeOutline size={16} weight="fill" />
-        </div>
+        {/* Niente menu della finestra: le chat si mostrano/nascondono e si
+            chiudono da "Chat attive"; il titolo si rinomina col doppio clic. */}
         {isEditing ? (
           <input
             ref={inputRef}
@@ -280,6 +265,27 @@ export default function Card(props: CardProps): React.ReactElement {
           </div>
         )}
         {props.headerExtra}
+        {/* Il prompt non sta tra le chat attive: si chiude da qui. */}
+        {isPrompt && (
+          <div
+            className="gear-btn"
+            title="Chiudi"
+            onClick={props.onClose}
+            style={{
+              flex: '0 0 auto',
+              width: 22,
+              height: 22,
+              borderRadius: 'var(--radius-sm)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'var(--color-neutral-500)',
+              cursor: 'pointer'
+            }}
+          >
+            <X size={14} />
+          </div>
+        )}
 
         {/* Menu reso in portale su document.body: esce da overflow/stacking
             della card e sta sopra la sidebar. */}

@@ -100,14 +100,21 @@ input:focus {
   position: absolute;
   top: 0;
   bottom: 0;
-  right: -6px;
-  width: 8px;
+  /* Occupa tutto lo spazio fra la barra e le chat: il bordo che si vede è lì. */
+  right: calc(var(--space-4) * -1);
+  width: var(--space-4);
   cursor: col-resize;
   z-index: 3;
 }
 .sidebar-resizer:hover,
 .sidebar-resizer:active {
-  background: linear-gradient(to right, transparent 3px, var(--color-divider) 3px, var(--color-divider) 4px, transparent 4px);
+  background: linear-gradient(
+    to right,
+    transparent calc(50% - 0.5px),
+    var(--color-divider) calc(50% - 0.5px),
+    var(--color-divider) calc(50% + 0.5px),
+    transparent calc(50% + 0.5px)
+  );
 }
 
 /* --- Chat attive --- */
