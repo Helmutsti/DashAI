@@ -20,6 +20,9 @@ export interface ChatListProps {
   activeId: string | null
   height: number
   onResize: (px: number) => void
+  /** elenco dei progetti sopra la sezione: cede lo spazio quando la si allarga */
+  projectsRef: React.RefObject<HTMLDivElement>
+
   /** clic = mostra al posto di quella attiva; Ctrl/Cmd+clic = affianca */
   onShow: (id: string, beside: boolean) => void
   onClose: (id: string) => void
@@ -46,16 +49,13 @@ export default function ChatList(props: ChatListProps): React.ReactElement {
   const startResize = (e: React.PointerEvent): void => {
     e.preventDefault()
     const box = boxRef.current
-    const column = box?.parentElement
-    if (!box || !column) return
+    const projectsBox = props.projectsRef.current
+    if (!box || !projectsBox) return
     const startY = e.clientY
     const startH = box.getBoundingClientRect().height
-    // Può salire fino sotto l'intestazione della barra (simbolo e «<<»),
-    // coprendo i progetti: l'elenco dei progetti si riduce fino a sparire.
-    const header = column.firstElementChild as HTMLElement | null
-    const gap = parseFloat(getComputedStyle(column).rowGap) || 0
-    const top = header ? header.getBoundingClientRect().bottom : column.getBoundingClientRect().top
-    const max = box.getBoundingClientRect().bottom - top - 2 * gap - MIN_PROJECTS_PX
+    // Lo spazio in più viene tutto dall'elenco dei progetti, che si riduce
+    // fino a una striscia minima.
+    const max = startH + projectsBox.getBoundingClientRect().height - MIN_PROJECTS_PX
     const onMove = (ev: PointerEvent): void => {
       props.onResize(Math.max(MIN_CHATS_PX, Math.min(max, startH + (startY - ev.clientY))))
     }

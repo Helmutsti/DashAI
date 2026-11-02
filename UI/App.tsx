@@ -559,13 +559,14 @@ export default function App(): React.ReactElement {
     }
   }, [chats])
 
-  // Nome della chat = nome della sessione ufficiale dell'agente. Ogni tanto si
-  // cerca, per le chat di Claude Code e Codex, la sessione più recente della
-  // loro cartella nata dopo l'avvio della chat.
+  // Ogni tanto si cerca, per le chat di Claude Code e Codex, la sessione più
+  // recente della loro cartella nata dopo l'avvio della chat: se ne tiene il
+  // codice (per riprenderla) e, se la chat non è stata rinominata a mano, il
+  // nome. La rinomina blocca solo il nome, mai l'aggancio della sessione.
   useEffect(() => {
     const tick = async (): Promise<void> => {
       const list = chatsRef.current.filter(
-        (c) => !c.titleLocked && c.startedAt && detectAgent(c.startupCommand) !== 'ollama' && detectAgent(c.startupCommand)
+        (c) => c.startedAt && detectAgent(c.startupCommand) !== 'ollama' && detectAgent(c.startupCommand)
       )
       const byCwd = new Map<string, AgentSession[]>()
       for (const c of list) {
@@ -576,9 +577,11 @@ export default function App(): React.ReactElement {
         const match = c.sessionId
           ? byCwd.get(cwd)!.find((x) => x.id === c.sessionId)
           : byCwd.get(cwd)!.find((x) => x.agent === agent && x.updated >= (c.startedAt as number) - 5000 && !taken.has(x.id))
-        if (match && (match.title !== c.title || match.id !== c.sessionId)) {
-          patchColRef.current(c.id, { title: match.title, sessionId: match.id })
-        }
+        if (!match) continue
+        const patch: Partial<Column> = {}
+        if (match.id !== c.sessionId) patch.sessionId = match.id
+        if (!c.titleLocked && match.title !== c.title) patch.title = match.title
+        if (Object.keys(patch).length) patchColRef.current(c.id, patch)
       }
     }
     const timer = setInterval(() => void tick(), 15000)
@@ -1464,6 +1467,7 @@ export default function App(): React.ReactElement {
             activeId={activeId}
             height={chatsHeight}
             onResize={setChatsHeight}
+            projectsRef={projectTreeRef}
             onShow={showChat}
             onClose={closeChat}
             onNewChat={launchFreeAgent}
