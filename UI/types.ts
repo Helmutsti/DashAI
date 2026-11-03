@@ -1,6 +1,9 @@
 import type { ShellKey } from './projects'
 import type { IconName } from './icons'
 
+/** Dove portare una chat rispetto a quella attiva: al suo posto, a destra o sotto. */
+export type Placement = 'replace' | 'right' | 'below'
+
 export interface Column {
   /** id stabile per l'intera vita della scheda: lega la sessione terminale a
    *  questa card, così riordino/drag non ricreano la shell. */

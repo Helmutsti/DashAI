@@ -1,10 +1,11 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { CaretDoubleRight, Gear, X } from '@phosphor-icons/react'
 import BrandMark from './BrandMark'
 import NewChatButton from './NewChatButton'
 import { AgentLogo, detectAgent, type AgentKey } from './agents'
+import ChatPlaceMenu from './ChatPlaceMenu'
 import { Icon } from './icons'
-import type { Column } from './types'
+import type { Column, Placement } from './types'
 import type { Project } from './projects'
 
 /** Spazio minimo lasciato ai progetti quando "Chat attive" è allargata al massimo. */
@@ -23,8 +24,9 @@ export interface ChatListProps {
   /** elenco dei progetti sopra la sezione: cede lo spazio quando la si allarga */
   projectsRef: React.RefObject<HTMLDivElement>
 
-  /** clic = mostra al posto di quella attiva; Ctrl/Cmd+clic = affianca */
-  onShow: (id: string, beside: boolean) => void
+  /** clic = al posto di quella attiva (o la toglie se è già sullo schermo);
+   *  Ctrl/Cmd+clic = affiancata; destro = menu */
+  onShow: (id: string, place: Placement, toggle?: boolean) => void
   onClose: (id: string) => void
   /** nuova chat al volo, senza progetto */
   onNewChat: (agent: AgentKey, beside: boolean) => void
@@ -43,6 +45,7 @@ export function ChatIcon({ col, size, color }: { col: Column; size: number; colo
 export default function ChatList(props: ChatListProps): React.ReactElement {
   const { chats, projects, waiting, visibleIds, activeId } = props
   const boxRef = useRef<HTMLDivElement>(null)
+  const placeMenu = usePlaceMenu(props.onShow)
 
   // Trascinando la linea si allarga verso l'alto: nessun limite se non quello
   // di lasciare qualche pixel ai progetti, per poterla riportare giù.
@@ -115,7 +118,7 @@ export default function ChatList(props: ChatListProps): React.ReactElement {
                   key={col.id}
                   className={cls}
                   title={col.startupCommand || col.title}
-                  onClick={(e) => props.onShow(col.id, e.ctrlKey || e.metaKey)}
+                  {...placeMenu.handlers(col.id)}
                 >
                   <span style={{ width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: '0 0 auto' }}>
                     <ChatIcon col={col} size={14} color={isWaiting ? 'var(--color-attention)' : 'var(--color-neutral-300)'} />
@@ -144,8 +147,32 @@ export default function ChatList(props: ChatListProps): React.ReactElement {
           </div>
         )}
       </div>
+      {placeMenu.menu}
     </div>
   )
+}
+
+/**
+ * Clic su una chat attiva: semplice = al posto di quella attiva, con Ctrl/Cmd =
+ * affiancata, destro = menu per scegliere dove.
+ */
+function usePlaceMenu(onShow: (id: string, place: Placement, toggle?: boolean) => void): {
+  handlers: (id: string) => Pick<React.HTMLAttributes<HTMLElement>, 'onClick' | 'onContextMenu'>
+  menu: React.ReactElement | null
+} {
+  const [open, setOpen] = useState<{ id: string; x: number; y: number } | null>(null)
+  return {
+    handlers: (id) => ({
+      onClick: (e) => (e.ctrlKey || e.metaKey ? onShow(id, 'right') : onShow(id, 'replace', true)),
+      onContextMenu: (e) => {
+        e.preventDefault()
+        setOpen({ id, x: e.clientX, y: e.clientY })
+      }
+    }),
+    menu: open && (
+      <ChatPlaceMenu x={open.x} y={open.y} onPick={(place) => onShow(open.id, place)} onClose={() => setOpen(null)} />
+    )
+  }
 }
 
 export interface ChatRailProps {
@@ -154,7 +181,7 @@ export interface ChatRailProps {
   activeId: string | null
   topInset: number
   onOpen: () => void
-  onShow: (id: string, beside: boolean) => void
+  onShow: (id: string, place: Placement, toggle?: boolean) => void
   onSettings: () => void
   onNewChat: (agent: AgentKey, beside: boolean) => void
   newChatLabel: string
@@ -163,6 +190,7 @@ export interface ChatRailProps {
 
 /** Barra laterale chiusa: colonna stretta con le chat attive e i loro avvisi. */
 export function ChatRail(props: ChatRailProps): React.ReactElement {
+  const placeMenu = usePlaceMenu(props.onShow)
   return (
     <div
       style={{
@@ -187,7 +215,7 @@ export function ChatRail(props: ChatRailProps): React.ReactElement {
               key={col.id}
               className={`rail-chat${isWaiting ? ' is-waiting' : ''}${props.activeId === col.id ? ' is-active' : ''}`}
               title={col.title}
-              onClick={(e) => props.onShow(col.id, e.ctrlKey || e.metaKey)}
+              {...placeMenu.handlers(col.id)}
             >
               <ChatIcon col={col} size={16} color={isWaiting ? 'var(--color-attention)' : 'var(--color-neutral-400)'} />
               {isWaiting && <span className="attention-badge attention-badge--small">!</span>}
@@ -198,6 +226,7 @@ export function ChatRail(props: ChatRailProps): React.ReactElement {
       <div className="gear-btn" title="Impostazioni" onClick={props.onSettings} style={railBtn}>
         <Gear size={17} />
       </div>
+      {placeMenu.menu}
     </div>
   )
 }

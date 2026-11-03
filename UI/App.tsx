@@ -20,7 +20,7 @@ import BrandMark from './BrandMark'
 import ProjectEditorModal from './ProjectEditorModal'
 import SettingsModal from './SettingsModal'
 import { useSettings } from './SettingsContext'
-import { newColId, type Column, type Row } from './types'
+import { newColId, type Column, type Placement, type Row } from './types'
 import WindowControls, { WIN_TITLEBAR_PX } from './WindowControls'
 import { hitAt, startPointerDrag } from './pointerDrag'
 import {
@@ -341,7 +341,7 @@ export default function App(): React.ReactElement {
   const openColumn = (partial: Omit<Column, 'id' | 'w'>, w = 1, beside = true): void => {
     const col: Column = { id: newColId(), w, ...partial }
     if (col.kind !== 'prompt') setChats((s) => [...s, col])
-    placeCol(col, beside)
+    placeCol(col, beside ? 'right' : 'replace')
     // La card appena aperta è quella su cui si vuole scrivere.
     setActiveId(col.id)
     setFocusTick((n) => n + 1)
@@ -374,7 +374,7 @@ export default function App(): React.ReactElement {
     // Già aperta tra le chat attive: basta mostrarla.
     const open = chats.find((c) => c.sessionId === sess.id)
     if (open) {
-      showChat(open.id, beside)
+      showChat(open.id, beside ? 'right' : 'replace')
       return
     }
     openColumn({
@@ -480,36 +480,51 @@ export default function App(): React.ReactElement {
   }
 
   /**
-   * Mette una card nella griglia. `beside`: accanto a quella attiva (o in
-   * coda se non ce n'è una); altrimenti prende il posto della chat attiva.
+   * Mette una card nella griglia, rispetto alla chat attiva:
+   * - 'replace': ne prende il posto;
+   * - 'right' / 'below': le va accanto, a destra o sotto, come si vede sullo
+   *   schermo (dentro la stessa traccia o in una traccia nuova, secondo
+   *   l'orientamento della griglia).
+   * Senza una chat attiva va in coda alla prima traccia.
    */
-  const placeCol = (col: Column, beside: boolean): void => {
+  const placeCol = (col: Column, place: Placement): void => {
     setRows((s) => {
       if (s.length === 0) return [{ h: 1, cols: [col] }]
       let r = s.findIndex((row) => row.cols.some((c) => c.id === activeId))
       const c = r >= 0 ? s[r].cols.findIndex((x) => x.id === activeId) : -1
       if (r < 0) r = 0
+      // Le card di una traccia stanno affiancate se la griglia è a righe,
+      // impilate se è a colonne.
+      const sameTrack = place === 'replace' || (place === 'right') === byRows
+      if (!sameTrack) {
+        const next = s.slice()
+        next.splice(r + 1, 0, { h: 1, cols: [col] })
+        return next
+      }
       return s.map((row, i) => {
         if (i !== r) return row
         const cols = row.cols.slice()
-        if (!beside && c >= 0 && cols[c].kind !== 'prompt') cols[c] = { ...col, w: cols[c].w }
+        if (place === 'replace' && c >= 0 && cols[c].kind !== 'prompt') cols[c] = { ...col, w: cols[c].w }
         else cols.splice(c >= 0 ? c + 1 : cols.length, 0, col)
         return { ...row, cols }
       })
     })
   }
 
-  /** Chat attiva scelta dalla barra laterale: la mostra (o la affianca). */
-  const showChat = (id: string, beside: boolean): void => {
+  /**
+   * Chat attiva scelta dalla barra laterale: la porta sullo schermo al posto
+   * di quella attiva, o accanto. Se è già sullo schermo riceve il fuoco,
+   * oppure, con `toggle` (il clic semplice sulla riga), viene tolta dalla
+   * vista e resta tra le chat attive.
+   */
+  const showChat = (id: string, place: Placement, toggle = false): void => {
     const visible = rows.some((row) => row.cols.some((c) => c.id === id))
     const col = chats.find((c) => c.id === id)
-    // Già sullo schermo: un clic la toglie dalla vista (resta tra le chat
-    // attive); con Ctrl/Cmd porta solo il fuoco su di lei.
-    if (visible && !beside) {
+    if (visible && toggle) {
       hideChat(id)
       return
     }
-    if (!visible && col) placeCol({ ...col, collapsed: false }, beside)
+    if (!visible && col) placeCol({ ...col, collapsed: false }, place)
     focusCard(id)
   }
 
