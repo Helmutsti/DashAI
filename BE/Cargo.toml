@@ -1,6 +1,6 @@
 [package]
 name = "dashai"
-version = "1.0.2"
+version = "1.0.3"
 description = "DashAI — workspace di schede-chat ridimensionabili"
 authors = ["Helmutsti"]
 license = ""
