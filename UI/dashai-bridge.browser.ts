@@ -69,6 +69,15 @@ export function createBrowserBridge() {
         { agent: 'codex', id: 'demo-2', title: 'Scrivi i test per il carrello', updated: Date.now() - 5 * 3600e3, messages: null },
         { agent: 'claude', id: 'demo-3', title: 'Sistema il layout della pagina prodotto su mobile', updated: Date.now() - 30 * 3600e3, messages: 54 }
       ]),
-    onFullScreenChange: (): (() => void) => () => {}
+    onFullScreenChange: (): (() => void) => () => {},
+    isDirectory: (): Promise<boolean> => Promise.resolve(false),
+    onFolderDrag: (): (() => void) => () => {},
+    win: {
+      minimize: (): Promise<void> => Promise.resolve(),
+      toggleMaximize: (): Promise<void> => Promise.resolve(),
+      close: (): Promise<void> => Promise.resolve(),
+      isMaximized: (): Promise<boolean> => Promise.resolve(false),
+      onResized: (): (() => void) => () => {}
+    }
   }
 }

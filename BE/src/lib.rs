@@ -28,6 +28,7 @@ pub fn run() {
       os_integration::dialog_pick_file,
       os_integration::shell_open_path,
       os_integration::shell_open_url,
+      os_integration::path_is_dir,
       windows::window_is_fullscreen,
       sessions::agent_sessions,
     ])

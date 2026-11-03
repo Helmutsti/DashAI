@@ -28,6 +28,12 @@ pub async fn dialog_pick_file(app: AppHandle) -> Option<String> {
         .map(|p| p.to_string_lossy().into_owned())
 }
 
+/// true se `path` è una cartella esistente (per le cartelle trascinate sulla finestra).
+#[tauri::command]
+pub fn path_is_dir(path: String) -> bool {
+    std::path::Path::new(&path).is_dir()
+}
+
 /// Apre `path` (o la home utente se vuoto) nel Finder/Esplora risorse.
 #[tauri::command]
 pub fn shell_open_path(app: AppHandle, path: String) -> bool {

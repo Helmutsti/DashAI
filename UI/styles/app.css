@@ -332,3 +332,38 @@ option {
   animation-direction: alternate-reverse;
   animation-delay: -320ms;
 }
+
+/* --- Pulsanti della finestra (Windows) --- */
+.win-controls {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  z-index: 5;
+}
+.win-btn {
+  width: 46px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--color-neutral-400);
+  cursor: default;
+}
+.win-btn svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+.win-btn:hover {
+  background: color-mix(in srgb, var(--color-text) 8%, transparent);
+  color: var(--color-text);
+}
+.win-btn--close:hover {
+  background: #c42b1c;
+  color: #ffffff;
+}

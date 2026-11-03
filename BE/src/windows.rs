@@ -11,6 +11,12 @@ const MAIN_LABEL: &str = "main";
 pub fn wire_main_window(app: &AppHandle) {
     let Some(main) = app.get_webview_window(MAIN_LABEL) else { return };
 
+    // Su Windows niente barra del titolo di sistema: la striscia in alto con
+    // riduci/ingrandisci/chiudi la disegna l'interfaccia. I bordi per
+    // ridimensionare e l'ombra restano quelli della finestra.
+    #[cfg(target_os = "windows")]
+    let _ = main.set_decorations(false);
+
     // Tauri non espone un evento dedicato di ingresso/uscita fullscreen: lo
     // deduciamo confrontando is_fullscreen() ad ogni Resized (il fullscreen
     // nativo genera comunque un resize) ed emettiamo solo sui cambi di stato,

@@ -1,5 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
+import { getCurrentWindow } from '@tauri-apps/api/window'
+import { getCurrentWebview } from '@tauri-apps/api/webview'
 import type { ShellKey } from './projects'
 
 export interface CreateOpts {
@@ -81,6 +83,35 @@ const settings = {
   path: (): Promise<string> => invoke('settings_path')
 }
 
+/** Cartelle (o file) trascinate da fuori sopra la finestra; x/y in px CSS. */
+export type FolderDragEvent =
+  | { type: 'over'; x: number; y: number }
+  | { type: 'drop'; x: number; y: number; paths: string[] }
+  | { type: 'leave' }
+
+function onFolderDrag(cb: (ev: FolderDragEvent) => void): () => void {
+  let unlisten: (() => void) | null = null
+  let cancelled = false
+  void getCurrentWebview()
+    .onDragDropEvent((e) => {
+      const p = e.payload
+      if (p.type === 'leave') return cb({ type: 'leave' })
+      // La posizione arriva in pixel fisici dello schermo della finestra.
+      const x = p.position.x / window.devicePixelRatio
+      const y = p.position.y / window.devicePixelRatio
+      if (p.type === 'drop') cb({ type: 'drop', x, y, paths: p.paths })
+      else cb({ type: 'over', x, y })
+    })
+    .then((fn) => {
+      if (cancelled) fn()
+      else unlisten = fn
+    })
+  return () => {
+    cancelled = true
+    unlisten?.()
+  }
+}
+
 export function createDashaiBridge() {
   return {
     version: '0.1.0',
@@ -96,7 +127,17 @@ export function createDashaiBridge() {
     /** sessioni passate di Claude Code e Codex per una cartella */
     agentSessions: (cwd: string): Promise<AgentSession[]> => invoke('agent_sessions', { cwd }),
     onFullScreenChange: (cb: (isFullScreen: boolean) => void): (() => void) =>
-      subscribe<boolean>('dashai:fullscreen', cb)
+      subscribe<boolean>('dashai:fullscreen', cb),
+    isDirectory: (path: string): Promise<boolean> => invoke('path_is_dir', { path }),
+    onFolderDrag,
+    /** pulsanti della finestra disegnati dall'interfaccia (Windows) */
+    win: {
+      minimize: (): Promise<void> => getCurrentWindow().minimize(),
+      toggleMaximize: (): Promise<void> => getCurrentWindow().toggleMaximize(),
+      close: (): Promise<void> => getCurrentWindow().close(),
+      isMaximized: (): Promise<boolean> => getCurrentWindow().isMaximized(),
+      onResized: (cb: () => void): (() => void) => subscribe<unknown>('tauri://resize', () => cb())
+    }
   }
 }
 

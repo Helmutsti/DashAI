@@ -21,8 +21,11 @@ import ProjectEditorModal from './ProjectEditorModal'
 import SettingsModal from './SettingsModal'
 import { useSettings } from './SettingsContext'
 import { newColId, type Column, type Row } from './types'
+import WindowControls, { WIN_TITLEBAR_PX } from './WindowControls'
+import { hitAt, startPointerDrag } from './pointerDrag'
 import {
   PROJECTS_VERSION,
+  TOP_COLORS,
   makePrompt,
   makeProject,
   normalizeProjects,
@@ -38,6 +41,7 @@ const HANDLE = 6
 const MIN_FR = 0.3
 
 type DropTarget = { r: number; c: number; side: 'before' | 'after' } | null
+type CardHit = { kind: 'card'; r: number; c: number; side: 'before' | 'after' } | { kind: 'zone'; idx: number } | null
 type DragCard = { r: number; c: number } | null
 
 type ResizeDrag =
@@ -54,6 +58,10 @@ export default function App(): React.ReactElement {
   const [dropTarget, setDropTarget] = useState<DropTarget>(null)
   const [dropZone, setDropZone] = useState<number | null>(null)
   const [projects, setProjects] = useState<Project[]>([])
+  // Ultimo elenco disegnato: lo leggono i gestori che vivono più di un render
+  // (fine del riordino, cartelle trascinate da fuori).
+  const latestProjects = useRef(projects)
+  latestProjects.current = projects
   // Elenco unico dei prompt: non appartengono più a un progetto.
   const [prompts, setPrompts] = useState<Prompt[]>([])
   const [editingProject, setEditingProject] = useState<Project | null>(null)
@@ -95,6 +103,8 @@ export default function App(): React.ReactElement {
   const [reorderMode, setReorderMode] = useState(false)
   const [reorderDragId, setReorderDragId] = useState<string | null>(null)
   const projectTreeRef = useRef<HTMLDivElement>(null)
+  /** cartelle trascinate da Esplora file sopra l'elenco dei progetti */
+  const [folderOver, setFolderOver] = useState(false)
   // Posizioni pre-riordino, per l'animazione FLIP che simula lo "spostarsi per
   // fare spazio" delle icone iOS quando un progetto scavalca gli altri.
   const prevProjectRectsRef = useRef<Map<string, DOMRect>>(new Map())
@@ -130,7 +140,12 @@ export default function App(): React.ReactElement {
     return window.dashai.onFullScreenChange(setIsFullScreen)
   }, [])
   const isMac = window.dashai.platform === 'darwin'
+  const isWin = window.dashai.platform === 'win32'
+  // Striscia in alto su tutta la finestra, dello stesso colore dello sfondo e
+  // trascinabile: su macOS ospita i semafori a sinistra, su Windows (dove la
+  // barra di sistema è nascosta) riduci/ingrandisci/chiudi a destra.
   const macTrafficLightInset = isMac && !isFullScreen ? 28 : 0
+  const titleInset = isFullScreen ? 0 : isMac ? 28 : isWin ? WIN_TITLEBAR_PX : 0
 
 
   const outerRef = useRef<HTMLDivElement>(null)
@@ -170,62 +185,43 @@ export default function App(): React.ReactElement {
     })
   }, [projects, reorderMode])
 
-  const startProjectDrag = (id: string, e: React.DragEvent): void => {
-    if (e.dataTransfer) {
-      e.dataTransfer.effectAllowed = 'move'
-      try {
-        e.dataTransfer.setData('text/plain', id)
-      } catch {
-        /* alcune piattaforme lo vietano in dragstart */
-      }
-      // L'immagine che segue il cursore deve restare la riga "normale": se le
-      // si lascia usare il nodo reale, il browser la fotografa DOPO che React
-      // l'ha già trasformata nel placeholder tratteggiato (quello resta solo
-      // nella lista). Si passa quindi un clone congelato con l'aspetto attuale,
-      // staccato dal flusso e rimosso subito dopo che il fantasma è stato preso.
-      const node = e.currentTarget as HTMLElement
-      const rect = node.getBoundingClientRect()
-      const clone = node.cloneNode(true) as HTMLElement
-      clone.style.position = 'fixed'
-      clone.style.top = '-9999px'
-      clone.style.left = '-9999px'
-      clone.style.width = `${rect.width}px`
-      clone.style.margin = '0'
-      clone.style.pointerEvents = 'none'
-      document.body.appendChild(clone)
-      e.dataTransfer.setDragImage(clone, e.nativeEvent.offsetX, e.nativeEvent.offsetY)
-      setTimeout(() => clone.remove(), 0)
-    }
-    setReorderDragId(id)
-  }
-  // Sposta dal vivo il progetto afferrato sopra quello sorvolato: gli altri si
-  // spostano di conseguenza, ed è proprio quel movimento che l'effetto FLIP
+  // Il trascinamento è fatto a mano con gli eventi del puntatore e non con
+  // il drag&drop HTML5: la finestra accetta le cartelle trascinate da Esplora
+  // file, e su Windows questo impedisce il drag&drop HTML5 dentro la pagina.
+  // Si sposta dal vivo il progetto afferrato sopra quello sorvolato: gli altri
+  // si spostano di conseguenza, ed è proprio quel movimento che l'effetto FLIP
   // sopra anima. Lo scambio scatta solo quando il cursore supera la metà della
   // riga sorvolata (e nel verso in cui ci si sta muovendo): senza questa
   // isteresi, due righe adiacenti si scambiavano avanti e indietro ad ogni
   // minimo tremore del mouse, con un effetto scattoso e disorientante.
-  const overProjectDrag = (id: string, e: React.DragEvent): void => {
-    e.preventDefault()
-    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
-    if (!reorderDragId || reorderDragId === id) return
-    const rect = e.currentTarget.getBoundingClientRect()
-    const pastMidpoint = e.clientY - rect.top > rect.height / 2
-    setProjects((prev) => {
-      const from = prev.findIndex((p) => p.id === reorderDragId)
-      const to = prev.findIndex((p) => p.id === id)
-      if (from < 0 || to < 0 || from === to) return prev
-      const movingDown = from < to
-      if (movingDown && !pastMidpoint) return prev
-      if (!movingDown && pastMidpoint) return prev
-      const next = prev.slice()
-      const [moved] = next.splice(from, 1)
-      next.splice(to, 0, moved)
-      return next
+  const startProjectDrag = (id: string, e: React.PointerEvent): void => {
+    if (e.button !== 0) return
+    startPointerDrag(e, e.currentTarget as HTMLElement, {
+      onStart: () => setReorderDragId(id),
+      onMove: (x, y) => {
+        const over = hitAt(x, y, '[data-project-id]')
+        const overId = over?.dataset.projectId
+        if (!over || !overId || overId === id) return
+        const rect = over.getBoundingClientRect()
+        const pastMidpoint = y - rect.top > rect.height / 2
+        setProjects((prev) => {
+          const from = prev.findIndex((p) => p.id === id)
+          const to = prev.findIndex((p) => p.id === overId)
+          if (from < 0 || to < 0 || from === to) return prev
+          const movingDown = from < to
+          if (movingDown && !pastMidpoint) return prev
+          if (!movingDown && pastMidpoint) return prev
+          const next = prev.slice()
+          const [moved] = next.splice(from, 1)
+          next.splice(to, 0, moved)
+          return next
+        })
+      },
+      onEnd: () => {
+        persistProjects(latestProjects.current)
+        setReorderDragId(null)
+      }
     })
-  }
-  const endProjectDrag = (): void => {
-    if (reorderDragId) persistProjects(projects)
-    setReorderDragId(null)
   }
 
   // --- Persistenza progetti (projects.json) -------------------------------
@@ -273,6 +269,38 @@ export default function App(): React.ReactElement {
       prompts
     )
   const persistPrompts = (next: Prompt[]): void => persist(projects, next)
+
+  // --- Cartelle trascinate da Esplora file / Finder -------------------------
+  // Rilasciate sull'elenco dei progetti, diventano subito progetti: nome della
+  // cartella, cartella già impostata, un colore non ancora usato. I file
+  // (non cartelle) e le cartelle che sono già un progetto si ignorano.
+  const persistRef = useRef(persistProjects)
+  persistRef.current = persistProjects
+  useEffect(() => {
+    const overProjects = (x: number, y: number): boolean => {
+      const box = projectTreeRef.current
+      const el = document.elementFromPoint(x, y)
+      return !!box && !!el && box.contains(el)
+    }
+    return window.dashai.onFolderDrag(async (ev) => {
+      if (ev.type === 'leave') return setFolderOver(false)
+      const inside = overProjects(ev.x, ev.y)
+      if (ev.type === 'over') return setFolderOver(inside)
+      setFolderOver(false)
+      if (!inside) return
+      const known = new Set(latestProjects.current.map((p) => p.cwd.toLowerCase()))
+      const added: Project[] = []
+      for (const path of ev.paths) {
+        if (known.has(path.toLowerCase()) || !(await window.dashai.isDirectory(path))) continue
+        known.add(path.toLowerCase())
+        const label = path.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || path
+        const used = new Set([...latestProjects.current, ...added].map((p) => p.color))
+        const color = TOP_COLORS.slice(1).find((c) => !used.has(c)) ?? TOP_COLORS[1 + ((latestProjects.current.length + added.length) % (TOP_COLORS.length - 1))]
+        added.push(makeProject({ label, cwd: path, color }))
+      }
+      if (added.length) persistRef.current([...latestProjects.current, ...added])
+    })
+  }, [])
 
   // Il "+" apre una BOZZA: nulla viene aggiunto finchÃ© non si salva.
   const addProject = (): void => {
@@ -894,59 +922,58 @@ export default function App(): React.ReactElement {
     []
   )
 
-  // --- Drag & drop schede -------------------------------------------------
-  const startCardDrag = (r: number, c: number, e: React.DragEvent): void => {
-    if (e.dataTransfer) {
-      e.dataTransfer.effectAllowed = 'move'
-      try {
-        e.dataTransfer.setData('text/plain', `${r}.${c}`)
-      } catch {
-        /* alcune piattaforme lo vietano in dragstart */
-      }
+  // --- Spostamento schede ---------------------------------------------------
+  // Si afferra l'intestazione della scheda. Come per i progetti, è fatto con
+  // gli eventi del puntatore (vedi startProjectDrag). I punti di rilascio sono
+  // marcati nel DOM: data-drop-card (una scheda: prima o dopo, secondo la metà
+  // sorvolata), data-drop-veil (il segnaposto già aperto) e data-drop-zone
+  // (una nuova riga fra le righe).
+  const cardHitAt = (x: number, y: number): CardHit => {
+    const el = hitAt(x, y, '[data-drop-zone],[data-drop-veil],[data-drop-card]')
+    if (!el) return null
+    if (el.dataset.dropZone !== undefined) return { kind: 'zone', idx: Number(el.dataset.dropZone) }
+    if (el.dataset.dropVeil) {
+      const [r, c, side] = el.dataset.dropVeil.split('.')
+      return { kind: 'card', r: Number(r), c: Number(c), side: side === 'before' ? 'before' : 'after' }
     }
-    setTimeout(() => {
-      setDragCard({ r, c })
-      setOpenMenu(null)
-    }, 0)
+    const [r, c] = (el.dataset.dropCard ?? '').split('.').map(Number)
+    // Metà della card lungo l'asse interno alla traccia: orizzontale se le card
+    // sono affiancate, verticale se impilate.
+    const rect = el.getBoundingClientRect()
+    const before = byRows ? x - rect.left < rect.width / 2 : y - rect.top < rect.height / 2
+    return { kind: 'card', r, c, side: before ? 'before' : 'after' }
+  }
+  const startCardDrag = (r: number, c: number, e: React.PointerEvent): void => {
+    if (e.button !== 0 || (e.target as HTMLElement).closest('input, textarea')) return
+    startPointerDrag(e, e.currentTarget as HTMLElement, {
+      onStart: () => {
+        setDragCard({ r, c })
+        setOpenMenu(null)
+      },
+      onMove: (x, y) => {
+        const hit = cardHitAt(x, y)
+        if (hit?.kind === 'card') {
+          setDropZone(null)
+          setDropTarget((dt) =>
+            dt && dt.r === hit.r && dt.c === hit.c && dt.side === hit.side ? dt : { r: hit.r, c: hit.c, side: hit.side }
+          )
+        } else if (hit?.kind === 'zone') {
+          setDropTarget(null)
+          setDropZone((z) => (z === hit.idx ? z : hit.idx))
+        }
+      },
+      onEnd: (x, y) => {
+        const hit = cardHitAt(x, y)
+        if (hit?.kind === 'card') moveToRow(r, c, hit.r, hit.side === 'before' ? hit.c : hit.c + 1)
+        else if (hit?.kind === 'zone') moveToNewRow(r, c, hit.idx)
+        else endCardDrag()
+      }
+    })
   }
   const endCardDrag = (): void => {
     setDragCard(null)
     setDropTarget(null)
     setDropZone(null)
-  }
-  const overCard = (r: number, c: number, e: React.DragEvent): void => {
-    e.preventDefault()
-    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
-    // Metà della card lungo l'asse interno alla traccia: orizzontale se le card
-    // sono affiancate, verticale se impilate.
-    const rect = e.currentTarget.getBoundingClientRect()
-    const before = byRows
-      ? e.clientX - rect.left < rect.width / 2
-      : e.clientY - rect.top < rect.height / 2
-    const side = before ? 'before' : 'after'
-    setDropZone(null)
-    setDropTarget((dt) => (dt && dt.r === r && dt.c === c && dt.side === side ? dt : { r, c, side }))
-  }
-  const dropOnCard = (r: number, c: number, e: React.DragEvent): void => {
-    e.preventDefault()
-    e.stopPropagation()
-    const d = dragCard
-    const side = dropTarget && dropTarget.r === r && dropTarget.c === c ? dropTarget.side : 'after'
-    if (d) moveToRow(d.r, d.c, r, side === 'before' ? c : c + 1)
-    else endCardDrag()
-  }
-  const overZone = (idx: number, e: React.DragEvent): void => {
-    e.preventDefault()
-    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
-    setDropTarget(null)
-    setDropZone((z) => (z === idx ? z : idx))
-  }
-  const dropOnZone = (idx: number, e: React.DragEvent): void => {
-    e.preventDefault()
-    e.stopPropagation()
-    const d = dragCard
-    if (d) moveToNewRow(d.r, d.c, idx)
-    else endCardDrag()
   }
 
   const moveToRow = (fromR: number, fromC: number, toR: number, toC: number): void => {
@@ -1045,7 +1072,7 @@ export default function App(): React.ReactElement {
               dropTarget && dropTarget.r === r && dropTarget.c === c ? dropTarget.side : null
             return (
               <Fragment key={id}>
-                {dropSide === 'before' && veil(r, c)}
+                {dropSide === 'before' && veil(r, c, 'before')}
                 <Card
                   r={r}
                   c={c}
@@ -1096,15 +1123,12 @@ export default function App(): React.ReactElement {
                   onCommitTitle={(value) => commitTitle(r, c, value)}
                   onCancelEdit={() => setEditing(null)}
                   onDragStart={(e) => startCardDrag(r, c, e)}
-                  onDragEnd={endCardDrag}
-                  onDragOver={(e) => overCard(r, c, e)}
-                  onDrop={(e) => dropOnCard(r, c, e)}
                   onProcessExit={() => removeColById(id)}
                   onToggleCollapse={() => toggleCollapse(id)}
                   onSavePrompt={(content) => savePrompt(col, content)}
                   onChangePrompt={(content) => setPromptContent(id, content)}
                 />
-                {dropSide === 'after' && veil(r, c)}
+                {dropSide === 'after' && veil(r, c, 'after')}
                 {c < row.cols.length - 1 && (
                   <div
                     onPointerDown={(e) => startDragCol(r, c, e)}
@@ -1128,17 +1152,13 @@ export default function App(): React.ReactElement {
 
   // Velo di rilascio: occupa il posto dove andrà la chat trascinata; la card
   // di destinazione si stringe da sola perché condivide lo spazio della traccia.
-  const veil = (r: number, c: number): React.ReactElement => {
+  const veil = (r: number, c: number, side: 'before' | 'after'): React.ReactElement => {
     const dragged = dragCard ? rows[dragCard.r]?.cols[dragCard.c] : undefined
     const color = dragged?.color || 'var(--color-accent)'
     return (
       <div
         key="veil"
-        onDragOver={(e) => {
-          e.preventDefault()
-          if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
-        }}
-        onDrop={(e) => dropOnCard(r, c, e)}
+        data-drop-veil={`${r}.${c}.${side}`}
         style={{
           flex: '1 1 0%',
           minWidth: 0,
@@ -1164,8 +1184,7 @@ export default function App(): React.ReactElement {
   const zone = (idx: number): React.ReactElement => (
     <div
       key={`z-${idx}`}
-      onDragOver={(e) => overZone(idx, e)}
-      onDrop={(e) => dropOnZone(idx, e)}
+      data-drop-zone={idx}
       style={{
         flex: '0 0 auto',
         // Striscia trasversale al canvas: bassa e larga fra le righe, stretta e
@@ -1220,11 +1239,11 @@ export default function App(): React.ReactElement {
         color: 'var(--color-text)',
         fontFamily: 'var(--font-body)',
         padding: 'var(--space-4)',
-        paddingTop: `calc(var(--space-4) + ${macTrafficLightInset}px)`,
+        paddingTop: `calc(var(--space-4) + ${titleInset}px)`,
         gap: 'var(--space-4)'
       }}
     >
-      {macTrafficLightInset > 0 && (
+      {titleInset > 0 && (
         <div
           data-tauri-drag-region
           style={{
@@ -1232,10 +1251,11 @@ export default function App(): React.ReactElement {
             top: 0,
             left: 0,
             right: 0,
-            height: `calc(var(--space-4) + ${macTrafficLightInset}px)`
+            height: `calc(var(--space-4) + ${titleInset}px)`
           }}
         />
       )}
+      {isWin && !isFullScreen && <WindowControls />}
       {!collapsed && (
         <div
           style={{
@@ -1295,7 +1315,13 @@ export default function App(): React.ReactElement {
               overflowY: 'auto',
               display: 'flex',
               flexDirection: 'column',
-              gap: 'var(--space-1)'
+              gap: 'var(--space-1)',
+              // Cartelle trascinate sopra: l'area si segna come punto di
+              // rilascio, come i segnaposto delle chat (contorno, non bordo,
+              // così le righe non si spostano).
+              borderRadius: 'var(--radius-md)',
+              outline: folderOver ? '1.5px dashed var(--color-accent)' : 'none',
+              background: folderOver ? 'color-mix(in srgb, var(--color-accent) 12%, transparent)' : undefined
             }}
           >
             {/* Titolo "Progetti": qui stanno il + per un nuovo progetto e il
@@ -1327,15 +1353,7 @@ export default function App(): React.ReactElement {
               <div
                 key={p.id}
                 data-project-id={p.id}
-                draggable={reorderMode}
-                onDragStart={(e) => reorderMode && startProjectDrag(p.id, e)}
-                onDragOver={(e) => reorderMode && overProjectDrag(p.id, e)}
-                onDrop={(e) => {
-                  if (!reorderMode) return
-                  e.preventDefault()
-                  e.stopPropagation()
-                }}
-                onDragEnd={endProjectDrag}
+                onPointerDown={(e) => reorderMode && startProjectDrag(p.id, e)}
                 style={{
                   display: 'flex',
                   flexDirection: 'column',

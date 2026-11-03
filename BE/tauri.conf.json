@@ -23,7 +23,6 @@
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
         "backgroundColor": "#00000000",
-        "dragDropEnabled": false,
         "transparent": true,
         "windowEffects": {
           "effects": [

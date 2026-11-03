@@ -45,10 +45,8 @@ export interface CardProps {
   onNewCard: (e: React.MouseEvent) => void
   onCommitTitle: (value: string) => void
   onCancelEdit: () => void
-  onDragStart: (e: React.DragEvent) => void
-  onDragEnd: () => void
-  onDragOver: (e: React.DragEvent) => void
-  onDrop: (e: React.DragEvent) => void
+  /** pressione sull'intestazione: se il puntatore si muove, la scheda si sposta */
+  onDragStart: (e: React.PointerEvent) => void
   /** invocato quando la shell termina (per l'auto-chiusura "chiudi al termine") */
   onProcessExit: () => void
   onToggleCollapse: () => void
@@ -111,8 +109,7 @@ export default function Card(props: CardProps): React.ReactElement {
   return (
     <div
       data-card-id={col.id}
-      onDragOver={props.onDragOver}
-      onDrop={props.onDrop}
+      data-drop-card={`${r}.${c}`}
       // capture: qualsiasi interazione dentro la card (anche nel terminale, che
       // ferma la propagazione dei suoi eventi) la rende quella attiva.
       onPointerDownCapture={props.onActivate}
@@ -147,12 +144,10 @@ export default function Card(props: CardProps): React.ReactElement {
         overflow: isMenuOpen ? 'visible' : 'hidden'
       }}
     >
-      {/* Header = drag handle (draggable qui, non su tutta la card, così il
+      {/* Header = maniglia per spostarla (qui, non su tutta la card, così il
           terminale resta usabile e selezionabile) */}
       <div
-        draggable={!isEditing}
-        onDragStart={props.onDragStart}
-        onDragEnd={props.onDragEnd}
+        onPointerDown={isEditing ? undefined : props.onDragStart}
         style={{
           flex: '0 0 auto',
           position: 'relative',
