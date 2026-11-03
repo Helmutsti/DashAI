@@ -675,7 +675,7 @@ dependencies = [
 
 [[package]]
 name = "dashai"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "dirs",
  "log",
