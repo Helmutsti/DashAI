@@ -32,6 +32,8 @@ export interface ChatListProps {
   onNewChat: (agent: AgentKey, beside: boolean) => void
   newChatLabel: string
   label: string
+  /** intestazione del gruppo delle chat senza progetto */
+  noProjectLabel: string
 }
 
 /** Icona della chat: il logo dell'agente, altrimenti l'icona del comando. */
@@ -77,7 +79,9 @@ export default function ChatList(props: ChatListProps): React.ReactElement {
     if (items.length) groups.push({ key: p.id, label: p.label, color: p.color, items })
   }
   const orphans = chats.filter((c) => !projects.some((p) => p.id === c.projectId))
-  if (orphans.length) groups.push({ key: '_', label: '', color: 'var(--color-neutral-500)', items: orphans })
+  // Anche le chat senza progetto hanno la loro intestazione: senza, sembrerebbero
+  // far parte del gruppo sopra.
+  if (orphans.length) groups.push({ key: '_', label: props.noProjectLabel, color: 'var(--color-neutral-500)', items: orphans })
 
   return (
     <div

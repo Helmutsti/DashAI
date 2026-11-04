@@ -1508,6 +1508,7 @@ export default function App(): React.ReactElement {
             onNewChat={launchFreeAgent}
             newChatLabel={t('sidebar.newChat')}
             label={t('sidebar.activeChats')}
+            noProjectLabel={t('sidebar.noProject')}
           />
 
           {/* Impostazioni (in basso) */}
