@@ -88,12 +88,14 @@ input:focus {
 .project-row.is-open {
   background: color-mix(in srgb, var(--color-text) 6%, transparent);
 }
+/* Cartella e ingranaggio esistono solo quando si vedono: nascosti non devono
+   tenere il loro posto, altrimenti ogni nome si taglia allo stesso punto. */
 .project-row .row-actions {
-  visibility: hidden;
+  display: none;
 }
 .project-row:hover .row-actions,
 .project-row.is-open .row-actions {
-  visibility: visible;
+  display: flex;
 }
 /* Bordo destro della barra laterale: si trascina per cambiarne la larghezza */
 .sidebar-resizer {

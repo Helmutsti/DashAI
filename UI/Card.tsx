@@ -211,7 +211,12 @@ export default function Card(props: CardProps): React.ReactElement {
           >
             {projectLabel && (
               <>
-                <span style={{ flex: '0 0 auto', width: 8, height: 8, borderRadius: '50%', background: color || 'var(--color-neutral-500)', alignSelf: 'center' }} />
+                {/* Il pallino sta in una scatola alta quanto la riga (i pulsanti
+                    dell'intestazione sono 22×22): così ha lo stesso respiro in
+                    orizzontale e in verticale, come nella barra laterale. */}
+                <span style={headerGlyphBox}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: color || 'var(--color-neutral-500)' }} />
+                </span>
                 {/* si accorcia prima del titolo, che è l'informazione più specifica */}
                 <span
                   style={{
@@ -370,6 +375,16 @@ export default function Card(props: CardProps): React.ReactElement {
       </div>
     </div>
   )
+}
+
+/** Segno in testa all'intestazione: quadrato quanto la riga, contenuto al centro. */
+const headerGlyphBox: CSSProperties = {
+  flex: '0 0 auto',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: 22,
+  height: 22
 }
 
 const menuItemStyle: CSSProperties = {

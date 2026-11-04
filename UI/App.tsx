@@ -346,6 +346,8 @@ export default function App(): React.ReactElement {
     setActiveId(col.id)
     setFocusTick((n) => n + 1)
   }
+  // Uno script che si chiude da solo è di passaggio: prende sempre un posto
+  // suo accanto, mai quello della scheda su cui si sta lavorando.
   const openCommandCard = (p: Project, cmd: QuickCommand, beside = false): void =>
     openColumn({
       projectId: p.id,
@@ -358,7 +360,7 @@ export default function App(): React.ReactElement {
       startupCommand: cmd.command,
       closeOnExit: cmd.closeOnExit,
       startedAt: Date.now()
-    }, 1, beside)
+    }, 1, beside || cmd.closeOnExit)
 
   const launchAgent = (p: Project, agent: AgentKey, beside: boolean): void =>
     openColumn({
@@ -1436,7 +1438,7 @@ export default function App(): React.ReactElement {
                     {p.label}
                   </span>
                   {!reorderMode && (
-                    <div className="row-actions" style={{ display: 'flex', alignItems: 'center' }}>
+                    <div className="row-actions" style={{ alignItems: 'center' }}>
                       <div
                         className="gear-btn"
                         title={t('project.openFolder')}
